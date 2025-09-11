@@ -13,3 +13,9 @@ python -m venv env
 
 # Activate (Windows)
 source ./env/Scripts/activate
+```
+
+### 1. Create and Activate Virtual Environment
+```bash
+pip install -r requirements.txt
+```
