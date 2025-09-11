@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RPS GENERATOR</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
+  <div class="bg-white shadow-lg rounded-lg p-8 w-full max-w-md">
+    <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">RPS GENERATOR</h1>
+    
+    <!-- Form Upload + Select -->
+    <form method="POST" action="/" enctype="multipart/form-data" class="space-y-4">
+
+      <!-- Tahun -->
+      <div>
+        <label for="tahun" class="block text-sm font-medium text-gray-700">Tahun</label>
+        <input type="text" name="tahun" id="tahun" value="{{ tahun }}"
+          class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500">
+      </div>
+
+      <!-- Upload RPS File -->
+      <div>
+        <label for="rps_file" class="block text-sm font-medium text-gray-700">Upload RPS Data (.xlsx)</label>
+        <input type="file" name="rps_file" id="rps_file" accept=".xlsx"
+          class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none">
+      </div>
+
+      <!-- Dropdown Matkul -->
+      <div>
+        <label for="nama_matkul" class="block text-sm font-medium text-gray-700">Nama Matakuliah</label>
+        <select name="nama_matkul" id="nama_matkul"
+          class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500">
+          {% for matkul in matkul_list %}
+            <option value="{{ matkul }}" {% if selected_matkul == matkul %}selected{% endif %}>
+              {{ matkul }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <!-- Submit -->
+      <button type="submit"
+        class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition">
+        Generate
+      </button>
+    </form>
+
+    <!-- Hasil Upload -->
+    {% if selected_matkul and uploaded_file %}
+      <div class="mt-6 p-4 border rounded-md bg-green-50 text-green-700">
+        <p><strong>Selected Matkul:</strong> {{ selected_matkul }}</p>
+        <p><strong>Uploaded File:</strong> {{ uploaded_file }}</p>
+      </div>
+
+      <!-- Download Button -->
+      <form method="POST" action="/download-rps" class="mt-4">
+        <input type="hidden" name="nama_matkul" value="{{ selected_matkul }}">
+        <input type="hidden" name="uploaded_file" value="{{ uploaded_file }}">
+        <input type="hidden" name="tahun" value="{{ tahun }}">
+        <button type="submit"
+          class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition">
+          Download RPS
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</body>
+</html>
