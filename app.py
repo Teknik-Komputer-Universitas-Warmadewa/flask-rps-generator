@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, redirect, url_for, abort
+from flask import Flask, render_template, request, send_file, redirect, url_for, abort, send_from_directory
 import openpyxl
 import os
 import io
@@ -141,11 +141,12 @@ def get_matkul_data(nama_matkul, tahun):
     except Exception as e:
         raise ValueError(f"Error membuka file '{filename}': {str(e)}")
     
-    if nama_matkul not in wb.sheetnames:
+    sheet_name = nama_matkul.split()[0]
+    if sheet_name not in wb.sheetnames:
         wb.close()
         raise ValueError(f"Sheet '{nama_matkul}' tidak ditemukan dalam {filename}")
 
-    sheet = wb[nama_matkul]
+    sheet = wb[sheet_name]
 
     # pustaka, tim, syarat
     pustaka_utama, pustaka_pendukung, team_teaching, nik, matkul_syarat = [], [], [], [], []
@@ -184,7 +185,13 @@ def get_matkul_data(nama_matkul, tahun):
         if col_i: indikator.append(str(col_i))
         if col_j: kriteria.append(str(col_j))
         if col_k: materi.append(str(col_k))
-        if col_l: bobot.append(str(col_l))
+        if col_l is None:
+            # skip (jangan append, supaya tidak bikin array kepanjangan)
+            continue
+        elif str(col_l).strip() == "-":
+            bobot.append("0")
+        else:
+            bobot.append(str(col_l))
         if col_m: pustaka_weekly.append(str(col_m))
 
         if col_o: cpl_bobot.append(str(col_o))
@@ -380,41 +387,41 @@ def index():
 
 @app.route("/download-rps", methods=["POST"])
 def download_rps():
-    matkul = request.form.get("nama_matkul")
-    tahun = request.form.get("tahun") or str(datetime.now().year)
+        matkul = request.form.get("nama_matkul")
+        tahun = request.form.get("tahun") or str(datetime.now().year)
 
-    # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-    # matkul_data = get_matkul_data(matkul,tahun)
-    # rps_data = get_rps_data(matkul)
+        # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+        # matkul_data = get_matkul_data(matkul,tahun)
+        # rps_data = get_rps_data(matkul)
 
-    try:
-        # Log the attempt
-        logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
-        
-        cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-        logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
-        
-        matkul_data = get_matkul_data(matkul, tahun)
-        logger.info(f"Successfully retrieved matkul data")
-        
-        rps_data = get_rps_data(matkul)
-        logger.info(f"Successfully retrieved RPS data")
-        
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-        abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
-    except ValueError as e:
-        logger.error(f"Data error: {e}")
-        abort(400, description=str(e))
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
+        try:
+            # Log the attempt
+            logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
+            
+            cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+            logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
+            
+            matkul_data = get_matkul_data(matkul, tahun)
+            logger.info(f"Successfully retrieved matkul data")
+            
+            rps_data = get_rps_data(matkul)
+            logger.info(f"Successfully retrieved RPS data")
+            
+        except FileNotFoundError as e:
+            logger.error(f"File not found: {e}")
+            abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
+        except ValueError as e:
+            logger.error(f"Data error: {e}")
+            abort(400, description=str(e))
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
 
-    if not matkul:
-        abort(400, description="Nama mata kuliah wajib diisi")
+        if not matkul:
+            abort(400, description="Nama mata kuliah wajib diisi")
 
     
-    try:
+    # try:
         output = io.BytesIO()
         workbook = xlsxwriter.Workbook(output, {"in_memory": True})
         worksheet = workbook.add_worksheet("RPS")
@@ -502,6 +509,17 @@ def download_rps():
             "font_size": 12,
             "border": 1,
             "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True
+        })
+
+        title_kontrak_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "left",
             "valign": "vcenter",
             "bold": True,
             "font_color": "black",
@@ -639,6 +657,23 @@ def download_rps():
         worksheet.merge_range("J11:L11", "Ir. I Made Surya Kumara, S.T., M.Sc.", text_otorisasi_format)
 
         # Placeholder CPL, CPMK, etc.
+        # Buat struktur baru tanpa duplikat
+        unique_cpmk = {}
+        unique_cpl = {}
+        for kode, desc in zip(cpl_cpmk_sub["cpmk_kode"], cpl_cpmk_sub["cpmk_desc"]):
+            if kode not in unique_cpmk:
+                unique_cpmk[kode] = desc  # simpan hanya sekali
+        
+        for kode, desc in zip(cpl_cpmk_sub["cpl_kode"], cpl_cpmk_sub["cpl_desc"]):
+            if kode not in unique_cpl:
+                unique_cpl[kode] = desc  # simpan hanya sekali
+
+        # Replace data lama dengan yang unik
+        cpl_cpmk_sub["cpl_kode"] = list(unique_cpl.keys())
+        cpl_cpmk_sub["cpl_desc"] = list(unique_cpl.values())
+        cpl_cpmk_sub["cpmk_kode"] = list(unique_cpmk.keys())
+        cpl_cpmk_sub["cpmk_desc"] = list(unique_cpmk.values())
+
         cpl_start_row = 12
         worksheet.merge_range(f'C{cpl_start_row}:L{cpl_start_row}', "CPL-PRODI yang dibebankan pada MK", title_cpl_format)
         for i in range(len(cpl_cpmk_sub["cpl_kode"])):
@@ -648,6 +683,7 @@ def download_rps():
         cpmk_start_row = cpl_start_row+1+len(cpl_cpmk_sub["cpl_kode"])
         worksheet.merge_range(f'C{cpmk_start_row}:K{cpmk_start_row}', "Capaian Pembelajaran Mata Kuliah (CPMK)", title_cpl_format)
         worksheet.write(f'L{cpmk_start_row}', "Bobot (%)", title_cpl_format)
+
         for i in range(len(cpl_cpmk_sub["cpmk_kode"])):
             worksheet.write(f'C{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_kode"][i], text_cpl_format)
             worksheet.merge_range(f'D{cpmk_start_row+1+i}:K{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_desc"][i], text_cpl_format)
@@ -1005,9 +1041,9 @@ def download_rps():
             worksheet_rpm.merge_range("C4:H4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
             worksheet_rpm.merge_range("C5:H5", "RENCANA PENUGASAN MAHASISWA", header_big)
 
-            kode_dokumen_rps = f'FTP-TKOM-RPM-{rps_data["kode_matkul"]}-{tahun}'
+            kode_dokumen_rpm = f'FTP-TKOM-RPM-{rps_data["kode_matkul"]}-{tahun}'
             worksheet_rpm.merge_range("I2:J3", "Kode Dokumen", header_small)
-            worksheet_rpm.merge_range("I4:J5", str(kode_dokumen_rps), header_small)
+            worksheet_rpm.merge_range("I4:J5", str(kode_dokumen_rpm), header_small)
 
             worksheet_rpm.merge_range("B6:C6", "MATA KULIAH (MK)", title_cpl_format)
             worksheet_rpm.merge_range("D6:J6", matkul, text_cpl_format)
@@ -1166,19 +1202,277 @@ def download_rps():
             )
             rpm_index += 1
 
+        ############################## RUBRIK ################################
+        rubrik_list = [
+            ("SP1", "Skala Persepsi", "Rubrik Penilaian Presentasi Lisan Mahasiswa"),
+            ("H1", "Holistik", "Rubrik Penilaian Penugasan Mahasiswa"),
+            ("H2", "Holistik", "Rubrik Penilaian UTS/UAS Mahasiswa"),
+            ("H3", "Holistik", "Rubrik Penilaian Rancangan Proposal Mahasiswa"),
+            ("A1", "Analitik", "Rubrik Penilaian Presentasi Makalah Mahasiswa"),
+            ("A2", "Analitik", "Rubrik Penilaian Project Based Learning Mahasiswa"),
+            ("A3", "Analitik", "Rubrik Penilaian Capstone Project Mahasiswa"),
+        ]
+
+        for kode_rubrik, type_rubrik, header_title in rubrik_list:
+            subcpmk_rub_key = f"rubrik_{kode_rubrik}_subcpmk"
+            cpl_rub_key = f"rubrik_{kode_rubrik}_cpl"
+
+            subcpmk_rub_data = matkul_data[subcpmk_rub_key]
+            cpl_rub_data = matkul_data[cpl_rub_key]
+
+            if not subcpmk_rub_data or not cpl_rub_data:
+                continue  # skip kalau kosong
+
+            # --- Buat worksheet ---
+            sheet_title = f"RUB {kode_rubrik}"
+            worksheet_rub = workbook.add_worksheet(sheet_title)
+
+            # Atur ukuran kolom
+            worksheet_rub.set_column("A:A", 5)        # Kolom A kecil
+            worksheet_rub.set_column("B:I", 25)       # Kolom B - L agak besar (2x normal)
+            worksheet_rub.set_row(1, 22)  # baris 2
+            worksheet_rub.set_row(2, 22)  # baris 3
+            worksheet_rub.set_row(3, 22)  # baris 4
+            worksheet_rub.set_row(4, 22)  # baris 5
+            worksheet_rub.merge_range("B2:B5", "", header_medium)
+            worksheet_rub.insert_image("B2", "data/logo.png", {
+                "x_scale": 1.5,  # perkecil jika perlu
+                "y_scale": 1.5,
+                "x_offset": 10,  # sedikit geser biar rapi
+                "y_offset": 2,
+            })
+
+            # --- Header utama ---            
+            worksheet_rub.merge_range("C2:G2", "UNIVERSITAS WARMADEWA", header_medium)
+            worksheet_rub.merge_range("C3:G3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+            worksheet_rub.merge_range("C4:G4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+            worksheet_rub.merge_range("C5:G5", header_title, header_small)
+
+            kode_dokumen_rub = f'FTP-TKOM-RUB-{rps_data["kode_matkul"]}-{tahun}'
+            worksheet_rub.merge_range("H2:I3", "Kode Dokumen", header_small)
+            worksheet_rub.merge_range("H4:I5", str(kode_dokumen_rub), header_small)
+
+            # # --- Info MK ---
+            worksheet_rub.merge_range("B6:C6", "MATA KULIAH", title_cpl_format)
+            worksheet_rub.merge_range("D6:I6", matkul, text_cpl_format)
+
+            worksheet_rub.merge_range("B7:C7", "KODE", title_cpl_format)
+            worksheet_rub.merge_range("D7:I7", rps_data["kode_matkul"], text_cpl_format)
+
+            worksheet_rub.merge_range("B8:C11", "DOSEN PENGAMPU", title_cpl_format)
+            # Buat 4 baris kosong dulu
+            for i in range(4):
+                worksheet_rub.merge_range(f"D{8+i}:I{8+i}", "", text_cpl_format)
+
+            # Isi nama dosen sesuai jumlah
+            if len(matkul_data["team_teaching"]) < 5:
+                for i in range(len(matkul_data["team_teaching"])):                
+                    worksheet_rub.write(f"D{8+i}", matkul_data["team_teaching"][i], text_cpl_format)
+            else:
+                worksheet_rub.write("D8", matkul_data["team_teaching"][0], text_cpl_format)
+
+            worksheet_rub.merge_range("B12:C12", "SEMESTER", title_cpl_format)
+            worksheet_rub.merge_range("D12:I12", rps_data["semester"], text_cpl_format)
+
+            worksheet_rub.merge_range("B13:C13", "SKS", title_cpl_format)
+            worksheet_rub.merge_range("D13:I13", rps_data["bobot_sks"], text_cpl_format)
+
+            # --- Cari semua kriteria yang ada kode rubrik (misal "SP1") ---
+            related_kriteria = [
+                k for k in matkul_data["kriteria_numbered"] if kode_rubrik in k
+            ]
+            tugas_str = "\n ".join(related_kriteria)
+
+            worksheet_rub.merge_range("B14:C14", "Tugas", title_cpl_format)
+            worksheet_rub.merge_range("D14:I14", tugas_str, text_cpl_format)
+
+            worksheet_rub.merge_range("B15:C15", "Tipe", title_cpl_format)
+            worksheet_rub.merge_range("D15:I15", type_rubrik, text_cpl_format)
+
+            worksheet_rub.merge_range("B16:C16", "Sifat", title_cpl_format)
+            worksheet_rub.merge_range("D16:I16", "Individu", text_cpl_format)
+
+            # --- Capaian & deskripsi ---
+            worksheet_rub.merge_range("B17:C17", "Capaian", title_cpl_format)
+
+            row = 16
+            # Buat 4 baris kosong dulu
+            for i in range(len(subcpmk_rub_data)):
+                worksheet_rub.merge_range(f"E{17+i}:I{17+i}", "", text_cpl_format)
+
+            for idx, (subcpmk, cpl) in enumerate(zip(subcpmk_rub_data, cpl_rub_data)):
+                try:
+                    sub_desc = cpl_cpmk_sub["subcpmk_desc"][idx]  # ambil berdasarkan urutan
+                except (IndexError, TypeError):
+                    sub_desc = ""
+                worksheet_rub.write(row, 3, subcpmk, title_korelasi_format)
+                worksheet_rub.write(row, 4, sub_desc, text_cpl_format)
+                row += 1
+        
+        #################################### KONTRAK ##################################
+        """
+        Membuat sheet KONTRAK dengan header mirip RPS template.
+        """
+        worksheet_kontrak = workbook.add_worksheet("KTR")
+
+        # Atur ukuran kolom
+        worksheet_kontrak.set_column("A:A", 5)        # Kolom A kecil
+        worksheet_kontrak.set_column("B:L", 18)       # Kolom B - L agak besar (2x normal)
+
+        # --- Header dengan logo ---
+        worksheet_kontrak.set_row(1, 22)  # baris 2
+        worksheet_kontrak.set_row(2, 22)  # baris 3
+        worksheet_kontrak.set_row(3, 22)  # baris 4
+        worksheet_kontrak.set_row(4, 26)  # baris 5
+        worksheet_kontrak.merge_range("B2:B5", "", header_medium)
+
+        worksheet_kontrak.insert_image("B2", "data/logo.png", {
+            "x_scale": 1.5,
+            "y_scale": 1.5,
+            "x_offset": 10,
+            "y_offset": 2,
+        })
+
+        worksheet_kontrak.merge_range("C2:J2", "UNIVERSITAS WARMADEWA", header_medium)
+        worksheet_kontrak.merge_range("C3:J3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+        worksheet_kontrak.merge_range("C4:J4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet_kontrak.merge_range("C5:J5", "KONTRAK PERKULIAHAN", header_big)
+
+        kode_dokumen_kontrak = f'FTP-TKOM-KTR-{rps_data["kode_matkul"]}-{tahun}'
+        worksheet_kontrak.merge_range("K2:L3", "Kode Dokumen", header_small)
+        worksheet_kontrak.merge_range("K4:L5", str(kode_dokumen_kontrak), header_small)
+
+        # --- Info Mata Kuliah ---
+        worksheet_kontrak.merge_range("B6:D6", "MATA KULIAH (MK)", title_format)
+        worksheet_kontrak.merge_range("E6:F6", "KODE", title_format)
+        worksheet_kontrak.merge_range("G6:H6", "RUMPUN MK", title_format)
+        worksheet_kontrak.merge_range("I6:J6", "BOBOT (SKS)", title_format)
+        worksheet_kontrak.merge_range("K6:L6", "SEMESTER", title_format)
+
+        worksheet_kontrak.merge_range("B7:D7", matkul, text_format)
+        worksheet_kontrak.merge_range("E7:F7", rps_data["kode_matkul"], text_format)
+        worksheet_kontrak.merge_range("G7:H7", rps_data["rumpun"], text_format)
+        worksheet_kontrak.merge_range("I7:J7", str(int(rps_data["bobot_sks"])), text_format)
+        worksheet_kontrak.merge_range("K7:L7", rps_data["semester"], text_format)
+
+        worksheet_kontrak.merge_range("B8:F8", "DOSEN PENGAMPU", title_format)
+        worksheet_kontrak.write("G8", "KELAS", title_format)
+        worksheet_kontrak.write("H8", "JUMLAH MAHASISWA", title_format)
+        worksheet_kontrak.merge_range("I8:J8", "HARI PERTEMUAN", title_format)
+        worksheet_kontrak.merge_range("K8:L8", "TEMPAT PERTEMUAN", title_format)
+
+        # Buat 4 baris kosong dulu
+        for i in range(4):
+            worksheet_kontrak.merge_range(f"B{9+i}:F{9+i}", "", text_cpl_format)
+
+        # Isi nama dosen sesuai jumlah
+        if len(matkul_data["team_teaching"]) < 5:
+            for i in range(len(matkul_data["team_teaching"])):                
+                worksheet_kontrak.write(f"B{9+i}", matkul_data["team_teaching"][i], text_cpl_format)
+        else:
+            worksheet_kontrak.write(f"B{9+i}", matkul_data["team_teaching"][0], text_cpl_format)
+
+        worksheet_kontrak.merge_range("G9:G12", matkul_data["kelas"][0], text_format)
+        worksheet_kontrak.merge_range("H9:H12", matkul_data["jml_mhs"][0], text_format)
+        worksheet_kontrak.merge_range("I9:J12", matkul_data["hari"][0], text_format)
+        worksheet_kontrak.merge_range("K9:L12", matkul_data["tempat"][0], text_format)
+
+        # --- Isi Kontrak Placeholder ---
+        worksheet_kontrak.merge_range("B13:L13", "KONTRAK PERKULIAHAN", title_cpl_format)
+
+        kontrak_sections = [
+            "MANFAAT MATA KULIAH",
+            "DESKRIPSI SINGKAT MATA KULIAH",
+            "TUJUAN PEMBELAJARAN",
+            "MATERI / KAJIAN PERKULIAHAN",
+            "STRATEGI PEMBELAJARAN",
+            "REFRENSI",
+            "TUGAS - TUGAS",
+            "KRITERIA PENILAIAN",
+            "TATA TERTIB",
+            "JADWAL PERKULIAHAN",
+            "KETENTUAN REMEDIAL",
+            "PERNYATAAN",
+        ]
+
+        kontrak_sections_2 = [
+            "\n".join(cpl_cpmk_sub["cpl_desc"]),  # manfaat = semua CPL
+            description_matkul,                   # deskripsi singkat MK
+            "\n".join(cpl_cpmk_sub["subcpmk_desc"]),  # tujuan pembelajaran
+            "\n".join(matkul_data["materi_non_uts_uas_numbered"]),  # materi perkuliahan
+            """Metode pembelajaran dalam kelas ini adalah menggunakan metode small group discussion, Cooperative learning, dan Contextual learning. Sedangkan bentuk pembelajaran adalah berupa : 
+        1. Kuliah tatap muka (luring)
+        2. Diskusi antar mahasiswa sesuai kelompok serta bimbingan dengan dosen sebagai fasilitator;
+        3. Praktik sederhana berupa pembuatan tugas kelompok dan individu.""",
+            "\n".join(matkul_data["pustaka_utama"] + matkul_data["pustaka_pendukung"]),  # referensi
+            """1. Tugas perkuliahan dapat berupa tugas individu maupun tugas kelompok (dilihat pada RTM)
+        2. Tugas diberikan oleh dosen pengampu mata kuliah berdasarkan materi yang sedang dibahas, dapat berupa gambar dan uraian
+        3. Format tugas maupun waktu pengumpulan tugas ditentukan pada saat tugas diberikan oleh dosen pengampu.
+        4. Keterlambatan pengumpulan tugas dari waktu yang telah ditentukan akan mendapat pengurangan nilai.""",
+            """Nilai akhir mata kuliah diperoleh dari beberapa komponen penilaian seperti Latihan soal, Tugas Mandiri, Quiz, UTS, dan UAS. Bobot penilaian secara umum dikelompokkan sebagai berikut :                                                                                                                                                                                                                                                                                                                               
+        1. Latihan soal 
+        2. Tugas Mandiri
+        3. Quiz
+        4. Ujian Tengah Semester 
+        5. Ujian Akhir Semester
+
+        Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sbb:
+        RENTANGAN NILAI :
+        80.00 – 100     = A         Unggul
+        75.00 – 79.99  = AB        Baik Sekali
+        70.00 – 74.99  = B          Baik
+        60.00 – 69.99  = BC        Cukup Baik
+        55.00 – 59.99  = C          Cukup
+        50.00 – 54.99  = CD        Kurang
+        44.00 – 49.99  = D          Sangat Kurang
+        0.00 – 43.99    = E          Gagal
+        0.00 – 0.00      = T          Tidak Aktif""",
+            """1. Mahasiswa diwajibkan menggunakan pakaian yang pantas (kemeja/kaos tidak oblong) pada waktu mengikuti perkuliahan di kelas maupun online.
+        2. Mahasiswa wajib menaktifkan video kamera saat melakukan kuliah daring / zoom meeting.
+        3. Keterlambatan masuk di kelas hanya diijinkan maksimal 60 menit dari jadwal, kecuali ada hal-hal yang bersifat khusus.
+        4. Pada perkuliahan daring/online, mahasiswa tidak diperkenankan melakukan keributan di kelas dalam bentuk apapun selama perkuliahan berlangsung, kecuali pada saat diskusi (saat zoom meeting mode mute kecuali saat diijinkan berbicara).
+        5. Mahasiswa wajib hadir minimal 75 % dari tatap muka, jika dibawah 75% maka tidak diperkenankan mengikuti remidi
+        6. Tidak ada ujian susulan untuk UTS dan UAS, kecuali dengan alasan jelas.
+        7. Hasil evaluasi mahasiswa wajib dikembalikan pada mahasiswa 2 minggu setelah ujian berakhir.
+        8. Protes nilai dilayani paling lama 1 minggu setelah nilai keluar
+        9. Mahasiswa diperkenankan membawa makanan ringan dan minuman didalam kelas saat praktik di lab. dan diharapkan untuk menjaga kebersihan""",
+            "Terlampir",  # jadwal
+            "Hal-hal lain yang belum dicantumkan disini akan diatur kemudian.",  # ketentuan remedial
+            """Saya yang bertandatangan dibawah ini menyatakan bahwa :
+        (1) Telah memahami dan bersedia untuk menerima serta mentaati semua yang telah diuraikan dalam kontrak perkuliahan ini dengan penuh kesadaran dan tanggungjawab.
+        (2) Bersedia menerima sanksi atas pelanggaran yang dilakukan."""  # pernyataan
+        ]
+
+        # --- Tulis ke worksheet ---
+        for i, (judul, isi) in enumerate(zip(kontrak_sections, kontrak_sections_2)):
+            row = 14 + i
+            worksheet_kontrak.write(f"B{row}", i + 1, text_format)
+            worksheet_kontrak.merge_range(f"C{row}:E{row}", judul, title_kontrak_format)
+            worksheet_kontrak.merge_range(f"F{row}:L{row}", isi, text_cpl_format)
+        
 
         workbook.close()
         output.seek(0)
 
+
+
         return send_file(
             output,
             as_attachment=True,
-            download_name=f"RPS_RPM_RUB_{matkul}_{tahun}.xlsx",
+            download_name=f"RPS_RPM_RUB_KTR_PORTO_{matkul}_{tahun}.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    except Exception as e:
-        logger.error(f"Error generating Excel file: {e}")
-        abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
+    # except Exception as e:
+    #     logger.error(f"Error generating Excel file: {e}")
+    #     abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
+
+@app.route("/download-template")
+def download_template():
+    return send_from_directory(
+        "data", 
+        "Template Rubrik.xlsx", 
+        as_attachment=True
+    )
 
 # Add error handlers
 @app.errorhandler(400)
