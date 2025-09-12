@@ -141,11 +141,12 @@ def get_matkul_data(nama_matkul, tahun):
     except Exception as e:
         raise ValueError(f"Error membuka file '{filename}': {str(e)}")
     
-    if nama_matkul not in wb.sheetnames:
+    sheet_name = nama_matkul.split()[0]
+    if sheet_name not in wb.sheetnames:
         wb.close()
         raise ValueError(f"Sheet '{nama_matkul}' tidak ditemukan dalam {filename}")
 
-    sheet = wb[nama_matkul]
+    sheet = wb[sheet_name]
 
     # pustaka, tim, syarat
     pustaka_utama, pustaka_pendukung, team_teaching, nik, matkul_syarat = [], [], [], [], []
