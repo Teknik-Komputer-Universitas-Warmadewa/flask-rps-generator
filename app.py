@@ -304,6 +304,8 @@ def get_matkul_data(nama_matkul, tahun):
             seen.append(cpmk)
             bobot_per_cpmk.append(bobot_dict[cpmk])
 
+    print("bobot :", bobot_per_cpmk)
+
     return {
         "pustaka_utama": pustaka_utama,
         "pustaka_pendukung": pustaka_pendukung,
@@ -381,41 +383,41 @@ def index():
 
 @app.route("/download-rps", methods=["POST"])
 def download_rps():
-    matkul = request.form.get("nama_matkul")
-    tahun = request.form.get("tahun") or str(datetime.now().year)
+        matkul = request.form.get("nama_matkul")
+        tahun = request.form.get("tahun") or str(datetime.now().year)
 
-    # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-    # matkul_data = get_matkul_data(matkul,tahun)
-    # rps_data = get_rps_data(matkul)
+        # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+        # matkul_data = get_matkul_data(matkul,tahun)
+        # rps_data = get_rps_data(matkul)
 
-    try:
-        # Log the attempt
-        logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
-        
-        cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-        logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
-        
-        matkul_data = get_matkul_data(matkul, tahun)
-        logger.info(f"Successfully retrieved matkul data")
-        
-        rps_data = get_rps_data(matkul)
-        logger.info(f"Successfully retrieved RPS data")
-        
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-        abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
-    except ValueError as e:
-        logger.error(f"Data error: {e}")
-        abort(400, description=str(e))
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
+        try:
+            # Log the attempt
+            logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
+            
+            cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+            logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
+            
+            matkul_data = get_matkul_data(matkul, tahun)
+            logger.info(f"Successfully retrieved matkul data")
+            
+            rps_data = get_rps_data(matkul)
+            logger.info(f"Successfully retrieved RPS data")
+            
+        except FileNotFoundError as e:
+            logger.error(f"File not found: {e}")
+            abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
+        except ValueError as e:
+            logger.error(f"Data error: {e}")
+            abort(400, description=str(e))
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
 
-    if not matkul:
-        abort(400, description="Nama mata kuliah wajib diisi")
+        if not matkul:
+            abort(400, description="Nama mata kuliah wajib diisi")
 
     
-    try:
+    # try:
         output = io.BytesIO()
         workbook = xlsxwriter.Workbook(output, {"in_memory": True})
         worksheet = workbook.add_worksheet("RPS")
@@ -649,6 +651,19 @@ def download_rps():
         cpmk_start_row = cpl_start_row+1+len(cpl_cpmk_sub["cpl_kode"])
         worksheet.merge_range(f'C{cpmk_start_row}:K{cpmk_start_row}', "Capaian Pembelajaran Mata Kuliah (CPMK)", title_cpl_format)
         worksheet.write(f'L{cpmk_start_row}', "Bobot (%)", title_cpl_format)
+
+        print(cpl_cpmk_sub["cpmk_kode"])
+        print(matkul_data["bobot_per_cpmk"])
+        # Buat struktur baru tanpa duplikat
+        unique_cpmk = {}
+        for kode, desc in zip(cpl_cpmk_sub["cpmk_kode"], cpl_cpmk_sub["cpmk_desc"]):
+            if kode not in unique_cpmk:
+                unique_cpmk[kode] = desc  # simpan hanya sekali
+
+        # Replace data lama dengan yang unik
+        cpl_cpmk_sub["cpmk_kode"] = list(unique_cpmk.keys())
+        cpl_cpmk_sub["cpmk_desc"] = list(unique_cpmk.values())
+        
         for i in range(len(cpl_cpmk_sub["cpmk_kode"])):
             worksheet.write(f'C{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_kode"][i], text_cpl_format)
             worksheet.merge_range(f'D{cpmk_start_row+1+i}:K{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_desc"][i], text_cpl_format)
@@ -1283,9 +1298,9 @@ def download_rps():
             download_name=f"RPS_RPM_RUB_{matkul}_{tahun}.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    except Exception as e:
-        logger.error(f"Error generating Excel file: {e}")
-        abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
+    # except Exception as e:
+    #     logger.error(f"Error generating Excel file: {e}")
+    #     abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
 
 @app.route("/download-template")
 def download_template():
