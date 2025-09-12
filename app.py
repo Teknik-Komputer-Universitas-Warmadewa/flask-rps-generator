@@ -807,6 +807,8 @@ def download_rps():
         mingguan_body_start_row = mingguan_start_row + 4
         len_mingguan = len(matkul_data["minggu_ke"])
 
+        weekly_subcpmk_desc = []
+
         for i in range(len_mingguan):
             worksheet.write(f'B{mingguan_body_start_row+i}', int(float(matkul_data["minggu_ke"][i])), text_cpl_format)
 
@@ -818,9 +820,10 @@ def download_rps():
                     idx = cpl_cpmk_sub["subcpmk_kode"].index(subcpmk_kode)
                     subcpmk_desc = cpl_cpmk_sub["subcpmk_desc"][idx]
 
+            weekly_subcpmk_desc.append(subcpmk_desc)
             worksheet.write(
                 f'C{mingguan_body_start_row+i}',
-                f'[{subcpmk_kode}] {subcpmk_desc}',
+                f'{subcpmk_desc} ({subcpmk_kode}) ',
                 text_cpl_format
             )
 
@@ -975,6 +978,194 @@ def download_rps():
             title_korelasi_format,
         )
 
+        ######################## RPM ######################
+        def write_rpm_template(rpm_sheet_name, judul_kriteria, subcpmk_rpm, indikator_numbered_rpm, minggu_rpm, bobot_rpm):
+            worksheet_rpm = workbook.add_worksheet(rpm_sheet_name)
+            # Header
+            # Tambahkan logo
+            # Set tinggi baris header (sedikit lebih tinggi dari normal)
+            # Atur ukuran kolom
+            worksheet_rpm.set_column("A:A", 5)        # Kolom A kecil
+            worksheet_rpm.set_column("B:B", 18)       # Kolom B - L agak besar (2x normal)
+            worksheet_rpm.set_column("C:J", 18)       # Kolom B - L agak besar (2x normal)
+            worksheet_rpm.set_row(1, 22)  # baris 2
+            worksheet_rpm.set_row(2, 22)  # baris 3
+            worksheet_rpm.set_row(3, 22)  # baris 4
+            worksheet_rpm.set_row(4, 26)  # baris 5
+            worksheet_rpm.merge_range("B2:B5", "", header_medium)
+            worksheet_rpm.insert_image("B2", "data/logo.png", {
+                "x_scale": 1.5,  # perkecil jika perlu
+                "y_scale": 1.5,
+                "x_offset": 10,  # sedikit geser biar rapi
+                "y_offset": 2,
+            })
+            
+            worksheet_rpm.merge_range("C2:H2", "UNIVERSITAS WARMADEWA", header_medium)
+            worksheet_rpm.merge_range("C3:H3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+            worksheet_rpm.merge_range("C4:H4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+            worksheet_rpm.merge_range("C5:H5", "RENCANA PENUGASAN MAHASISWA", header_big)
+
+            kode_dokumen_rps = f'FTP-TKOM-RPM-{rps_data["kode_matkul"]}-{tahun}'
+            worksheet_rpm.merge_range("I2:J3", "Kode Dokumen", header_small)
+            worksheet_rpm.merge_range("I4:J5", str(kode_dokumen_rps), header_small)
+
+            worksheet_rpm.merge_range("B6:C6", "MATA KULIAH (MK)", title_cpl_format)
+            worksheet_rpm.merge_range("D6:J6", matkul, text_cpl_format)
+
+            worksheet_rpm.merge_range("B7:C7", "KODE", title_cpl_format)
+            worksheet_rpm.merge_range("D7:E7", rps_data["kode_matkul"], text_cpl_format)
+            worksheet_rpm.write("F7", "SKS", title_cpl_format)
+            worksheet_rpm.write("G7", str(int(rps_data["bobot_sks"])), text_cpl_format)
+            worksheet_rpm.write("H7", "SEMESTER", title_cpl_format)
+            worksheet_rpm.merge_range("I7:J7", rps_data["semester"], text_cpl_format)
+
+            worksheet_rpm.merge_range("B8:C11", "DOSEN PENGAMPU", title_cpl_format)
+            # Buat 4 baris kosong dulu
+            for i in range(4):
+                worksheet_rpm.merge_range(f"D{8+i}:J{8+i}", "", text_cpl_format)
+
+            # Isi nama dosen sesuai jumlah
+            if len(matkul_data["team_teaching"]) < 5:
+                for i in range(len(matkul_data["team_teaching"])):                
+                    worksheet_rpm.write(f"D{8+i}", matkul_data["team_teaching"][i], text_cpl_format)
+            else:
+                worksheet_rpm.write("D8", matkul_data["team_teaching"][0], text_cpl_format)
+
+            worksheet_rpm.merge_range("B12:F12", "BENTUK TUGAS", title_cpl_format)
+            worksheet_rpm.merge_range("B13:F13", "Penugasan Individu", text_cpl_format)
+            worksheet_rpm.merge_range("G12:J12", "WAKTU PENGERJAAN TUGAS", title_cpl_format)
+            worksheet_rpm.merge_range("G13:J13", f'Minggu ke-{int(float(minggu_rpm))}', text_cpl_format)
+
+            worksheet_rpm.merge_range("B14:J14", "JUDUL TUGAS", title_cpl_format)
+            worksheet_rpm.merge_range("B15:J15", judul_kriteria, text_cpl_format)
+
+            worksheet_rpm.merge_range("B16:J16", "SUB CAPAIAN PEMBELAJARAN MATA KULIAH", title_cpl_format)
+            worksheet_rpm.merge_range("B17:J17", subcpmk_rpm, text_cpl_format)
+
+            worksheet_rpm.merge_range("B18:J18", "DESKRIPSI TUGAS", title_cpl_format)
+            worksheet_rpm.merge_range("B19:J19", indikator_numbered_rpm, text_cpl_format)
+
+            worksheet_rpm.merge_range("B20:J20", "METODE PENGERJAAN TUGAS", title_cpl_format)
+            worksheet_rpm.merge_range("B21:J21", "Mahasiswa menjawab soal yang diberikan pada saat perkuliahan", text_cpl_format)
+            worksheet_rpm.merge_range("B22:J22", "BENTUK DAN FORMAT LUARAN", title_cpl_format)
+            worksheet_rpm.write("B23", "a. Obyek Garapan", title_korelasi_format)
+            worksheet_rpm.merge_range("C23:J23", "Daftar soal", text_cpl_format)
+            worksheet_rpm.write("B24", "b. Bentuk Luaran", title_korelasi_format)
+            worksheet_rpm.merge_range("C24:J24", "Penjelasan dan analisis", text_cpl_format)
+            
+            worksheet_rpm.merge_range("B25:J25", "INDIKATOR, KRITERIA, dan BOBOT PENILAIAN", title_cpl_format)
+            worksheet_rpm.merge_range("B26:J26", f'Indikator: {indikator_numbered_rpm}', text_cpl_format)
+            worksheet_rpm.merge_range("B27:J27", "", text_cpl_format)
+            worksheet_rpm.merge_range("B28:J28", f'Bobot Penilaian : {bobot_rpm} % dari total 100% penilaian mata kuliah', text_cpl_format)
+            worksheet_rpm.merge_range("B29:J29", "Kriteria Penilaian: Terlampir", text_cpl_format)
+
+            worksheet_rpm.merge_range("B30:J30", "JADWAL PELAKSANAAN", title_cpl_format)
+            worksheet_rpm.merge_range("B31:J31", f'Minggu ke-{int(float(minggu_rpm))}', text_cpl_format)
+
+            worksheet_rpm.merge_range("B32:J32", "LAIN-LAIN", title_cpl_format)
+            worksheet_rpm.merge_range("B33:J33", "-", text_cpl_format)
+
+            worksheet_rpm.merge_range("B34:J34", "REFERENSI", title_cpl_format)
+            for i in range(len(matkul_data["pustaka_utama"])):
+                worksheet_rpm.merge_range(f'B{35+i}:J{35+i}', matkul_data["pustaka_utama"][i], text_cpl_format)
+            
+            for i in range(len(matkul_data["pustaka_pendukung"])):
+                worksheet_rpm.merge_range(f'B{35+len(matkul_data["pustaka_utama"])+i}:J{35+len(matkul_data["pustaka_utama"])+i}', matkul_data["pustaka_pendukung"][i], text_cpl_format)
+   
+        # --- Variabel kontrol ---
+        def to_number(value):
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return 0
+        
+        rpm_index = 1
+        tugas_count = 0
+        kuis_count = 0
+        has_uts = False
+        has_uas = False
+
+        # --- Variabel agregasi untuk UTS & UAS ---
+        uts_minggu = None
+        uts_bobot_total = 0
+        uts_indikator = None
+
+        uas_minggu = None
+        uas_bobot_total = 0
+        uas_indikator = None
+
+        # --- Loop semua kriteria ---
+        for i in range(len(matkul_data["kriteria_numbered"])):
+            kriteria = matkul_data["kriteria_numbered"][i]
+
+            if "Tugas" in kriteria:
+                tugas_count += 1
+                sheet_name = f"RPM{rpm_index} (Tugas {tugas_count})"
+                write_rpm_template(
+                    sheet_name,
+                    kriteria,
+                    weekly_subcpmk_desc[i],
+                    matkul_data["indikator_numbered"][i],
+                    matkul_data["minggu_ke"][i],
+                    matkul_data["bobot"][i],
+                )
+                rpm_index += 1
+
+            elif "Kuis" in kriteria:
+                kuis_count += 1
+                sheet_name = f"RPM{rpm_index} (Kuis {kuis_count})"
+                write_rpm_template(
+                    sheet_name,
+                    kriteria,
+                    weekly_subcpmk_desc[i],
+                    matkul_data["indikator_numbered"][i],
+                    matkul_data["minggu_ke"][i],
+                    matkul_data["bobot"][i],
+                )
+                rpm_index += 1
+
+            elif "Evaluasi UTS" in kriteria:
+                has_uts = True
+                uts_bobot_total += to_number(matkul_data["bobot"][i])
+                if uts_minggu is None:
+                    uts_minggu = matkul_data["minggu_ke"][i]
+                if uts_indikator is None:
+                    uts_indikator = matkul_data["indikator_numbered"][i]
+
+            elif "Evaluasi UAS" in kriteria:
+                has_uas = True
+                uas_bobot_total += to_number(matkul_data["bobot"][i])
+                if uas_minggu is None:
+                    uas_minggu = matkul_data["minggu_ke"][i]
+                if uas_indikator is None:
+                    uas_indikator = matkul_data["indikator_numbered"][i]
+
+        # --- Tambahkan sheet UTS kalau ada ---
+        if has_uts:
+            sheet_name = f"RPM{rpm_index} (Evaluasi UTS)"
+            write_rpm_template(
+                sheet_name,
+                "Evaluasi UTS",
+                "Evaluasi UTS",
+                uts_indikator,
+                uts_minggu,
+                uts_bobot_total,
+            )
+            rpm_index += 1
+
+        # --- Tambahkan sheet UAS kalau ada ---
+        if has_uas:
+            sheet_name = f"RPM{rpm_index} (Evaluasi UAS)"
+            write_rpm_template(
+                sheet_name,
+                "Evaluasi UAS",
+                "Evaluasi UAS",
+                uas_indikator,
+                uas_minggu,
+                uas_bobot_total,
+            )
+            rpm_index += 1
+
 
         workbook.close()
         output.seek(0)
@@ -993,20 +1184,20 @@ def download_rps():
 @app.errorhandler(400)
 def bad_request(error):
     return render_template('error.html', 
-                         error_code=400, 
-                         error_message=error.description), 400
+                        error_code=400, 
+                        error_message=error.description), 400
 
 @app.errorhandler(404)
 def not_found(error):
-    return render_template('error.html', 
-                         error_code=404, 
-                         error_message=error.description), 404
+    return render_template('error.html',
+                        error_code=404, 
+                        error_message=error.description), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     return render_template('error.html', 
-                         error_code=500, 
-                         error_message=error.description), 500
+                        error_code=500, 
+                        error_message=error.description), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
