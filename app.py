@@ -8,17 +8,27 @@ from datetime import datetime
 from collections import defaultdict
 from xlsxwriter.utility import xl_rowcol_to_cell
 import re
+import logging
+from logging.handlers import TimedRotatingFileHandler
 # import string
 
 app = Flask(__name__)
+# Get the absolute path of the current directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Setup logging
+LOG_FILE = os.path.join(BASE_DIR, "rps_generator.log")
+
+logger = logging.getLogger("RPSGenerator")
 
 # Folder untuk menyimpan data upload
-UPLOAD_FOLDER = os.path.join("uploads")
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Path ke Excel Template daftar matkul
-EXCEL_FILE = os.path.join("data", "Final Template Kurikulum 2025.xlsx")
+EXCEL_FILE = os.path.join(BASE_DIR, "data", "Final Template Kurikulum 2025.xlsx")
+
 SHEET_MATKUL = "9. Susunan Mata Kuliah"
 SHEET_CPL = "2. CPL Prodi"
 SHEET_CPMK = "12.2. list CPMK"
@@ -31,84 +41,106 @@ MATKUL_COLUMN = "D"
 
 def get_matkul_list():
     """Read matkul list from Excel file"""
-    wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
-    sheet = wb[SHEET_MATKUL]
-    matkul = [
-        sheet[f"{MATKUL_COLUMN}{row}"].value
-        for row in range(MATKUL_START_ROW, MATKUL_END_ROW + 1)
-        if sheet[f"{MATKUL_COLUMN}{row}"].value is not None
-    ]
-    wb.close()
-    return matkul
+    try:
+        wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
+        sheet = wb[SHEET_MATKUL]
+        matkul = [
+            sheet[f"{MATKUL_COLUMN}{row}"].value
+            for row in range(MATKUL_START_ROW, MATKUL_END_ROW + 1)
+            if sheet[f"{MATKUL_COLUMN}{row}"].value is not None
+        ]
+        wb.close()
+        return matkul
+    except Exception as e:
+        # Log error agar tahu penyebabnya, tapi program tetap jalan
+        print(f"[WARNING] Gagal membaca file Excel List MK: {EXCEL_FILE} -> {e}")
 
 def get_rps_data(nama_matkul):
-    wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
-    sheet = wb[SHEET_MATKUL]
+    try:
+        wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
+        sheet = wb[SHEET_MATKUL]
 
-    result = {
-        "kode_matkul": None,
-        "semester": None,
-        "rumpun": None,
-        "bobot_sks": None
-    }
+        result = {
+            "kode_matkul": None,
+            "semester": None,
+            "rumpun": None,
+            "bobot_sks": None
+        }
 
-    for row in range(MATKUL_START_ROW, MATKUL_END_ROW + 1):
-        matkul_name = sheet[f"D{row}"].value  # cari nama matkul di kolom D
-        if matkul_name and str(matkul_name).strip().lower() == str(nama_matkul).strip().lower():
-            result["kode_matkul"] = str(int(sheet[f"C{row}"].value))
-            result["semester"] = sheet[f"N{row}"].value
-            result["rumpun"] = sheet[f"O{row}"].value
-            result["bobot_sks"] = sheet[f"E{row}"].value
-            break  # berhenti setelah ketemu
+        for row in range(MATKUL_START_ROW, MATKUL_END_ROW + 1):
+            matkul_name = sheet[f"D{row}"].value  # cari nama matkul di kolom D
+            if matkul_name and str(matkul_name).strip().lower() == str(nama_matkul).strip().lower():
+                result["kode_matkul"] = str(int(sheet[f"C{row}"].value))
+                result["semester"] = sheet[f"N{row}"].value
+                result["rumpun"] = sheet[f"O{row}"].value
+                result["bobot_sks"] = sheet[f"E{row}"].value
+                break  # berhenti setelah ketemu
 
-    wb.close()
-    return result
+        wb.close()
+        return result
+    except Exception as e:
+        # Log error agar tahu penyebabnya, tapi program tetap jalan
+        print(f"[WARNING] Gagal membaca file Excel RPS data: {EXCEL_FILE} -> {e}")
 
 def get_cpl_cpmk_sub_list(nama_matkul):
     """Ambil daftar CPL, CPMK, dan SubCPMK berdasarkan nama matkul"""
-    wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
-    sheet = wb[SHEET_SUBCPMK]
+    try:
+        wb = openpyxl.load_workbook(EXCEL_FILE, data_only=True)
+        sheet = wb[SHEET_SUBCPMK]
 
-    cpls_kode, cpls_desc = [], []
-    cpmks_kode, cpmks_desc = [], []
-    subcpmks_kode, subcpmks_desc = [], []
+        cpls_kode, cpls_desc = [], []
+        cpmks_kode, cpmks_desc = [], []
+        subcpmks_kode, subcpmks_desc = [], []
 
-    for row in range(3, 273):  # B3:F272 + H:I
-        mk = sheet[f"B{row}"].value
-        if mk and mk.strip().lower() == nama_matkul.strip().lower():
-            # ambil CPL
-            cpl_kode = sheet[f"H{row}"].value
-            cpl_desc = sheet[f"I{row}"].value
-            if cpl_kode: cpls_kode.append(str(cpl_kode))
-            if cpl_desc: cpls_desc.append(str(cpl_desc))
+        for row in range(3, 273):  # B3:F272 + H:I
+            mk = sheet[f"B{row}"].value
+            if mk and mk.strip().lower() == nama_matkul.strip().lower():
+                # ambil CPL
+                cpl_kode = sheet[f"H{row}"].value
+                cpl_desc = sheet[f"I{row}"].value
+                if cpl_kode: cpls_kode.append(str(cpl_kode))
+                if cpl_desc: cpls_desc.append(str(cpl_desc))
 
-            # ambil CPMK
-            cpmk_kode = sheet[f"C{row}"].value
-            cpmk_desc = sheet[f"D{row}"].value
-            if cpmk_kode: cpmks_kode.append(str(cpmk_kode))
-            if cpmk_desc: cpmks_desc.append(str(cpmk_desc))
+                # ambil CPMK
+                cpmk_kode = sheet[f"C{row}"].value
+                cpmk_desc = sheet[f"D{row}"].value
+                if cpmk_kode: cpmks_kode.append(str(cpmk_kode))
+                if cpmk_desc: cpmks_desc.append(str(cpmk_desc))
 
-            # ambil SubCPMK
-            subcpmk_kode = sheet[f"E{row}"].value
-            subcpmk_desc = sheet[f"F{row}"].value
-            if subcpmk_kode: subcpmks_kode.append(str(subcpmk_kode))
-            if subcpmk_desc: subcpmks_desc.append(str(subcpmk_desc))
+                # ambil SubCPMK
+                subcpmk_kode = sheet[f"E{row}"].value
+                subcpmk_desc = sheet[f"F{row}"].value
+                if subcpmk_kode: subcpmks_kode.append(str(subcpmk_kode))
+                if subcpmk_desc: subcpmks_desc.append(str(subcpmk_desc))
 
-    wb.close()
-    return {
-        "cpl_kode": cpls_kode,
-        "cpl_desc": cpls_desc,
-        "cpmk_kode": cpmks_kode,
-        "cpmk_desc": cpmks_desc,
-        "subcpmk_kode": subcpmks_kode,
-        "subcpmk_desc": subcpmks_desc,
-    }
+        wb.close()
+        return {
+            "cpl_kode": cpls_kode,
+            "cpl_desc": cpls_desc,
+            "cpmk_kode": cpmks_kode,
+            "cpmk_desc": cpmks_desc,
+            "subcpmk_kode": subcpmks_kode,
+            "subcpmk_desc": subcpmks_desc,
+        }
+    except Exception as e:
+        # Log error agar tahu penyebabnya, tapi program tetap jalan
+        print(f"[WARNING] Gagal membaca file Excel Sub CPMK: {EXCEL_FILE} -> {e}")
 
 def get_matkul_data(nama_matkul, tahun):
     """Ambil semua data terkait matkul dari file data_[matkul]_[tahun].xlsx"""
-    filename = f"uploads/data_{nama_matkul}_{tahun}.xlsx"
-    wb = openpyxl.load_workbook(filename, data_only=True)
+    # filename = f"uploads/data_{nama_matkul}_{tahun}.xlsx"
+    # wb = openpyxl.load_workbook(filename, data_only=True)
 
+    # Use absolute path
+    filename = os.path.join(UPLOAD_FOLDER, f"data_{nama_matkul}_{tahun}.xlsx")
+    
+    try:
+        wb = openpyxl.load_workbook(filename, data_only=True)
+    except FileNotFoundError:
+        raise ValueError(f"File '{filename}' tidak ditemukan")
+    except Exception as e:
+        raise ValueError(f"Error membuka file '{filename}': {str(e)}")
+    
     if nama_matkul not in wb.sheetnames:
         wb.close()
         raise ValueError(f"Sheet '{nama_matkul}' tidak ditemukan dalam {filename}")
@@ -351,585 +383,630 @@ def download_rps():
     matkul = request.form.get("nama_matkul")
     tahun = request.form.get("tahun") or str(datetime.now().year)
 
-    cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-    matkul_data = get_matkul_data(matkul,tahun)
-    rps_data = get_rps_data(matkul)
+    # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+    # matkul_data = get_matkul_data(matkul,tahun)
+    # rps_data = get_rps_data(matkul)
 
-    
+    try:
+        # Log the attempt
+        logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
+        
+        cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+        logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
+        
+        matkul_data = get_matkul_data(matkul, tahun)
+        logger.info(f"Successfully retrieved matkul data")
+        
+        rps_data = get_rps_data(matkul)
+        logger.info(f"Successfully retrieved RPS data")
+        
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
+    except ValueError as e:
+        logger.error(f"Data error: {e}")
+        abort(400, description=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
+
     if not matkul:
         abort(400, description="Nama mata kuliah wajib diisi")
 
-    output = io.BytesIO()
-    workbook = xlsxwriter.Workbook(output, {"in_memory": True})
-    worksheet = workbook.add_worksheet("RPS")
-
-    # Atur ukuran kolom
-    worksheet.set_column("A:A", 5)        # Kolom A kecil
-    worksheet.set_column("B:B", 18)       # Kolom B - L agak besar (2x normal)
-    worksheet.set_column("C:C", 36)       # Kolom B - L agak besar (2x normal)
-    worksheet.set_column("D:L", 18)       # Kolom B - L agak besar (2x normal)
-
-    # Format header dengan background hitam, font putih, center
-    header_small = workbook.add_format({
-        "align": "center",
-        "valign": "vcenter",
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "bold": True,
-        "font_color": "white",
-        "bg_color": "black",
-        "text_wrap": True
-    })
-
-    header_big = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 28,
-        "border": 1,
-        "bold": True,
-        "align": "center",
-        "font_color": "white",
-        "bg_color": "black",
-        "valign": "vcenter"
-    })
-
-    header_medium = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 18,
-        "border": 1,
-        "bold": True,
-        "align": "center",
-        "font_color": "white",
-        "bg_color": "black",
-        "valign": "vcenter"
-    })
-
-    # Format judul: bg abu + font hitam
-    title_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "bold": True,
-        "font_color": "black",
-        "text_wrap": True,
-        "bg_color": "#C0C0C0"  # abu-abu
-    })
-
-    # Format judul: bg abu + font hitam
-    title_format_green = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "bold": True,
-        "font_color": "black",
-        "text_wrap": True,
-        "bg_color": "green"  # abu-abu
-    })
-
-    title_cpl_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "left",
-        "valign": "vcenter",
-        "bold": True,
-        "font_color": "black",
-        "bg_color": "#C0C0C0"  # abu-abu
-    })
-
-    title_korelasi_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "bold": True,
-        "font_color": "black",
-        "text_wrap": True
-    })
-
-    # Format text
-    text_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "text_wrap": True,
-        "font_color": "black"
-    })
-
-    # Format text
-    text_cpl_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "left",
-        "valign": "vcenter",
-        "font_color": "black",
-        "text_wrap": True
-    })
-
-    # Format text
-    text_otorisasi_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "bottom",
-        "font_color": "black"
-    })
-
-    date_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "align": "center",
-        "valign": "vcenter",
-        "border": 1,
-        "num_format": "dd-mm-yyyy"
-    })
-
-    percent_format_bold = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "bold": True,
-        "font_color": "black",
-        "text_wrap": True,
-        "num_format": "0%"
-    })
-
-    percent_format_bold_fill = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "bold": True,
-        "font_color": "black",
-        "text_wrap": True,
-        "num_format": "0%",
-        "bg_color": "#C0C0C0"
-    })
-
-    percent_format = workbook.add_format({
-        "font_name": "Tahoma",
-        "font_size": 12,
-        "border": 1,
-        "align": "center",
-        "valign": "vcenter",
-        "font_color": "black",
-        "text_wrap": True,
-        "num_format": "0%"
-    })
-
-    # Header
-    # Tambahkan logo
-    # Set tinggi baris header (sedikit lebih tinggi dari normal)
-    worksheet.set_row(1, 22)  # baris 2
-    worksheet.set_row(2, 22)  # baris 3
-    worksheet.set_row(3, 22)  # baris 4
-    worksheet.set_row(4, 26)  # baris 5
-    worksheet.merge_range("B2:B5", "", header_medium)
-    worksheet.insert_image("B2", "data/logo.png", {
-        "x_scale": 1.5,  # perkecil jika perlu
-        "y_scale": 1.5,
-        "x_offset": 10,  # sedikit geser biar rapi
-        "y_offset": 2,
-    })
     
-    worksheet.merge_range("C2:J2", "UNIVERSITAS WARMADEWA", header_medium)
-    worksheet.merge_range("C3:J3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-    worksheet.merge_range("C4:J4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
-    worksheet.merge_range("C5:J5", "RENCANA PEMBELAJARAN SEMESTER", header_big)
+    try:
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+        worksheet = workbook.add_worksheet("RPS")
 
-    kode_dokumen_rps = f'FTP-TKOM-RPS-{rps_data["kode_matkul"]}-{tahun}'
-    worksheet.merge_range("K2:L3", "Kode Dokumen", header_small)
-    worksheet.merge_range("K4:L5", str(kode_dokumen_rps), header_small)
+        # Atur ukuran kolom
+        worksheet.set_column("A:A", 5)        # Kolom A kecil
+        worksheet.set_column("B:B", 18)       # Kolom B - L agak besar (2x normal)
+        worksheet.set_column("C:C", 36)       # Kolom B - L agak besar (2x normal)
+        worksheet.set_column("D:L", 18)       # Kolom B - L agak besar (2x normal)
 
-    # Matakuliah Info
-    worksheet.merge_range("B6:C6", "MATA KULIAH (MK)", title_format)
-    worksheet.merge_range("D6:E6", "KODE", title_format)
-    worksheet.write("F6", "RUMPUN MK", title_format)
-    worksheet.merge_range("G6:I6", "BOBOT (SKS)", title_format)
-    worksheet.write("J6", "SEMESTER", title_format)
-    worksheet.merge_range("K6:L6", "Tgl. PENETAPAN", title_format)
+        # Format header dengan background hitam, font putih, center
+        header_small = workbook.add_format({
+            "align": "center",
+            "valign": "vcenter",
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "bold": True,
+            "font_color": "white",
+            "bg_color": "black",
+            "text_wrap": True
+        })
 
-    worksheet.merge_range("B7:C9", matkul , text_format)
-    worksheet.merge_range("D7:E9", rps_data["kode_matkul"] , text_format)
-    worksheet.merge_range("F7:F9", rps_data["rumpun"], text_format)
-    worksheet.merge_range("G7:I9", str(int(rps_data["bobot_sks"])), text_format)
-    worksheet.merge_range("J7:J9", rps_data["semester"], text_format)
-    today = datetime.now()
-    worksheet.merge_range("K7:L9", today, date_format)
+        header_big = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 28,
+            "border": 1,
+            "bold": True,
+            "align": "center",
+            "font_color": "white",
+            "bg_color": "black",
+            "valign": "vcenter"
+        })
 
-    # Otorisasi
-    worksheet.merge_range("B10:C10", "OTORISASI / PENGESAHAN", title_format)
-    worksheet.merge_range("D10:F10", "Dosen Pengembang RPS", title_format)    
-    worksheet.merge_range("G10:I10", "Koordinator Mata Kuliah", title_format)    
-    worksheet.merge_range("J10:L10", "Ketua Program Studi", title_format)
+        header_medium = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 18,
+            "border": 1,
+            "bold": True,
+            "align": "center",
+            "font_color": "white",
+            "bg_color": "black",
+            "valign": "vcenter"
+        })
 
-    worksheet.set_row(10, 110)  # baris 11
+        # Format judul: bg abu + font hitam
+        title_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True,
+            "bg_color": "#C0C0C0"  # abu-abu
+        })
 
-    worksheet.merge_range("B11:C11", "OTORISASI / PENGESAHAN", text_otorisasi_format)
-    worksheet.merge_range("D11:F11", matkul_data["team_teaching"][0], text_otorisasi_format)    
-    worksheet.merge_range("G11:I11", "I Made Adi Bhaskara, S.Kom., M.T.", text_otorisasi_format)    
-    worksheet.merge_range("J11:L11", "Ir. I Made Surya Kumara, S.T., M.Sc.", text_otorisasi_format)
+        # Format judul: bg abu + font hitam
+        title_format_green = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True,
+            "bg_color": "green"  # abu-abu
+        })
 
-    # Placeholder CPL, CPMK, etc.
-    cpl_start_row = 12
-    worksheet.merge_range(f'C{cpl_start_row}:L{cpl_start_row}', "CPL-PRODI yang dibebankan pada MK", title_cpl_format)
-    for i in range(len(cpl_cpmk_sub["cpl_kode"])):
-        worksheet.write(f'C{cpl_start_row+1+i}', cpl_cpmk_sub["cpl_kode"][i], text_cpl_format)
-        worksheet.merge_range(f'D{cpl_start_row+1+i}:L{cpl_start_row+1+i}', cpl_cpmk_sub["cpl_desc"][i], text_cpl_format)
+        title_cpl_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "left",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "bg_color": "#C0C0C0"  # abu-abu
+        })
 
-    cpmk_start_row = cpl_start_row+1+len(cpl_cpmk_sub["cpl_kode"])
-    worksheet.merge_range(f'C{cpmk_start_row}:K{cpmk_start_row}', "Capaian Pembelajaran Mata Kuliah (CPMK)", title_cpl_format)
-    worksheet.write(f'L{cpmk_start_row}', "Bobot (%)", title_cpl_format)
-    for i in range(len(cpl_cpmk_sub["cpmk_kode"])):
-        worksheet.write(f'C{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_kode"][i], text_cpl_format)
-        worksheet.merge_range(f'D{cpmk_start_row+1+i}:K{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_desc"][i], text_cpl_format)
-        worksheet.write(f'L{cpmk_start_row+1+i}', int(matkul_data["bobot_per_cpmk"][i]), text_cpl_format)
+        title_korelasi_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True
+        })
 
-    subcpmk_start_row = cpmk_start_row+1+len(cpl_cpmk_sub["cpmk_kode"])
-    worksheet.merge_range(f'C{subcpmk_start_row}:L{subcpmk_start_row}', "Kemampuan akhir tiap tahapan belajar (Sub-CPMK)", title_cpl_format)
-    for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
-        worksheet.write(f'C{subcpmk_start_row+1+i}', cpl_cpmk_sub["subcpmk_kode"][i], text_cpl_format)
-        worksheet.merge_range(f'D{subcpmk_start_row+1+i}:L{subcpmk_start_row+1+i}', cpl_cpmk_sub["subcpmk_desc"][i], text_cpl_format)
+        # Format text
+        text_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "text_wrap": True,
+            "font_color": "black"
+        })
 
-    korelasi_start_row = subcpmk_start_row+1+len(cpl_cpmk_sub["subcpmk_kode"])
-    worksheet.merge_range(f'C{korelasi_start_row}:L{korelasi_start_row}', "Korelasi CPL terhadap Sub CPMK", title_cpl_format)
+        # Format text
+        text_cpl_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "left",
+            "valign": "vcenter",
+            "font_color": "black",
+            "text_wrap": True
+        })
 
-    
-    for row in range(korelasi_start_row+1, korelasi_start_row + 2 + len(cpl_cpmk_sub["subcpmk_kode"]) + 1):
-        for col in range(2, 12):  # D=3, L=11 (0-based index)
-            worksheet.write(row-1, col, "", text_cpl_format)
-    
-    # baris terakhir untuk total
-    total_row = korelasi_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 1
-    worksheet.write(total_row, 2, "Total", title_korelasi_format)
+        # Format text
+        text_otorisasi_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "bottom",
+            "font_color": "black"
+        })
 
-    for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
-        worksheet.write(f'C{korelasi_start_row+2+i}', cpl_cpmk_sub["subcpmk_kode"][i], title_korelasi_format)
+        date_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "align": "center",
+            "valign": "vcenter",
+            "border": 1,
+            "num_format": "dd-mm-yyyy"
+        })
 
-    start_cpl_col = 3
-    end_cpl_col = start_cpl_col + len(cpl_cpmk_sub["cpl_kode"])
-    for col in range(start_cpl_col,end_cpl_col):
-        worksheet.write(korelasi_start_row, col, cpl_cpmk_sub["cpl_kode"][col-3], title_korelasi_format)
+        percent_format_bold = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True,
+            "num_format": "0%"
+        })
 
-    # # Isi bobot sesuai CPL
-    # cpl_col_map = {kode: start_cpl_col + idx for idx, kode in enumerate(cpl_cpmk_sub["cpl_kode"])}
-    # for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
-    #     row = korelasi_start_row + 1 + i
-    #     kode = matkul_data["cpl_bobot"][i]
-    #     bobot = int(float(matkul_data["total_bobot"][i])/100)
-    #     if kode in cpl_col_map:
-    #         col = cpl_col_map[kode]
-    #         worksheet.write(row, col, bobot, percent_format)
+        percent_format_bold_fill = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True,
+            "num_format": "0%",
+            "bg_color": "#C0C0C0"
+        })
 
-    # === Tambahkan SUM total di baris "Total" ===
-    # for col in range(start_cpl_col, end_cpl_col):
-    #     col_letter = xlsxwriter.utility.xl_col_to_name(col)  # ubah index ke huruf Excel
-    #     start_row = korelasi_start_row + 1
-    #     end_row = korelasi_start_row + len(cpl_cpmk_sub["subcpmk_kode"])
-    #     formula = f"=SUM({col_letter}{start_row+1}:{col_letter}{end_row+1})"
-    #     worksheet.write_formula(total_row, col, formula, percent_format_bold)
+        percent_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "font_color": "black",
+            "text_wrap": True,
+            "num_format": "0%"
+        })
 
-    # --- isi bobot sesuai CPL (dan akumulasikan totals per kolom) ---
-    cpl_col_map = {kode: start_cpl_col + idx for idx, kode in enumerate(cpl_cpmk_sub["cpl_kode"])}
-
-    # inisialisasi totals per kolom (numeric col index)
-    totals = {col: 0.0 for col in range(start_cpl_col, end_cpl_col)}
-
-    for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
-        excel_row = korelasi_start_row + 1 + i               # Excel row number (1-based)
-        kode = matkul_data["cpl_bobot"][i]
-        # bobot sebagai fraction (mis. 25 -> 0.25) untuk format persen
-        try:
-            bobot = float(matkul_data["total_bobot"][i]) / 100.0
-        except Exception:
-            bobot = 0.0
-
-        if kode in cpl_col_map:
-            col = cpl_col_map[kode]                          # numeric col (0-based as used before)
-            col_letter = xlsxwriter.utility.xl_col_to_name(col)  # convert to letter, ex. 3 -> 'D'
-            # tulis nilai persen ke sel, pakai format percent_format
-            worksheet.write(f"{col_letter}{excel_row+1}", bobot, percent_format)
-            # akumulasikan total per kolom
-            totals[col] += bobot
-
-    # === tulis total (sebagai angka persen) di baris "Total" tanpa formula ===
-    total_row = korelasi_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 2  # baris Excel tempat "Total"
-    total_per_cpl = []
-    for col in range(start_cpl_col, end_cpl_col):
-        col_letter = xlsxwriter.utility.xl_col_to_name(col)
-        total_value = totals.get(col, 0.0)
-        total_per_cpl.append(total_value)
-        worksheet.write(f"{col_letter}{total_row}", total_value, percent_format_bold)
-
-    worksheet.merge_range(f"B{cpl_start_row}:B{total_row}", "Capaian Pembelajaran", title_korelasi_format)
-
-    desc_start_row = total_row + 1
-    worksheet.set_row(desc_start_row-1, 110)  # baris 11
-    worksheet.write(f"B{desc_start_row}", "Deskripsi Singkat MK", title_korelasi_format)
-    
-    materi_str = ", ".join(matkul_data["materi_non_uts_uas"])
-    description_matkul = (
-        f"Mata kuliah {matkul} membahas konsep teoritis, metode, "
-        f"dan implementasi mengenai materi seperti {materi_str}."
-    )
-    worksheet.merge_range(f'C{desc_start_row}:L{desc_start_row}', description_matkul, text_cpl_format)
-
-    bahan_start_row = desc_start_row + 1
-    bahan_end_row = bahan_start_row + len(matkul_data["materi_non_uts_uas_numbered"]) - 1
-    worksheet.merge_range(f"B{bahan_start_row}:B{bahan_end_row}", "Bahan Kajian/Materi Pembelajaran", title_korelasi_format)
-    for i in range(len(matkul_data["materi_non_uts_uas_numbered"])):
-        worksheet.merge_range(f'C{desc_start_row+1+i}:L{desc_start_row+1+i}', matkul_data["materi_non_uts_uas_numbered"][i], text_cpl_format)
-
-    pustaka_start_row = bahan_end_row + 1
-    pustaka_utama_end_row = pustaka_start_row + len(matkul_data["pustaka_utama"])
-    pustaka_pendukung_end_row = pustaka_utama_end_row + len(matkul_data["pustaka_pendukung"]) + 1
-    worksheet.merge_range(f"B{pustaka_start_row}:B{pustaka_pendukung_end_row}", "Pustaka", title_korelasi_format)
-    worksheet.merge_range(f"C{pustaka_start_row}:L{pustaka_start_row}", "Utama:", title_cpl_format)
-    worksheet.merge_range(f"C{pustaka_utama_end_row+1}:L{pustaka_utama_end_row+1}", "Pendukung:", title_cpl_format)
-    
-    for i in range(len(matkul_data["pustaka_utama"])):
-        worksheet.merge_range(f'C{pustaka_start_row+1+i}:L{pustaka_start_row+1+i}', matkul_data["pustaka_utama"][i], text_cpl_format)
-    
-    for i in range(len(matkul_data["pustaka_pendukung"])):
-        worksheet.merge_range(f'C{pustaka_utama_end_row+2+i}:L{pustaka_utama_end_row+2+i}', matkul_data["pustaka_pendukung"][i], text_cpl_format)
-    
-    dosen_start_row = pustaka_pendukung_end_row + 1
-    dosen_end_row = dosen_start_row + len(matkul_data["team_teaching"]) - 1
-    worksheet.merge_range(f"B{dosen_start_row}:B{dosen_end_row}", "Dosen Pengampu", title_korelasi_format)
-    for i in range(len(matkul_data["team_teaching"])):
-        worksheet.merge_range(f'C{dosen_start_row+i}:L{dosen_start_row+i}', matkul_data["team_teaching"][i], text_cpl_format)
-
-    syarat_start_row = dosen_end_row + 1
-    dosen_end_row = syarat_start_row + len(matkul_data["matkul_syarat"]) - 1
-    if dosen_end_row == syarat_start_row:
-        worksheet.write(f"B{syarat_start_row}", "Matakuliah Syarat", title_korelasi_format)
-    else:
-        worksheet.merge_range(f"B{syarat_start_row}:B{dosen_end_row}", "Matakuliah Syarat", title_korelasi_format)
-    for i in range(len(matkul_data["matkul_syarat"])):
-        worksheet.merge_range(f'C{syarat_start_row+i}:L{syarat_start_row+i}', matkul_data["matkul_syarat"][i], text_cpl_format)
-
-    # Pertemuan Mingguan 
-    # Header
-    mingguan_start_row = dosen_end_row + 1 
-    worksheet.merge_range(f"B{mingguan_start_row}:B{mingguan_start_row+2}", "Mg Ke-", title_format)
-    worksheet.write(f"B{mingguan_start_row+3}", "(1)", title_format)
-
-    worksheet.merge_range(f"C{mingguan_start_row}:C{mingguan_start_row+2}", "Kemampuan akhir tiap tahapan belajar (Sub-CPMK)", title_format)
-    worksheet.write(f"C{mingguan_start_row+3}", "(2)", title_format)
-
-    worksheet.merge_range(f"D{mingguan_start_row}:G{mingguan_start_row}", "Penilaian", title_format)
-    worksheet.merge_range(f"D{mingguan_start_row+1}:E{mingguan_start_row+2}", "Indikator", title_format)
-    worksheet.merge_range(f"F{mingguan_start_row+1}:G{mingguan_start_row+2}", "Teknik dan Instrumen Penilaian", title_format)
-    worksheet.merge_range(f"D{mingguan_start_row+3}:E{mingguan_start_row+3}", "(3)", title_format)
-    worksheet.merge_range(f"F{mingguan_start_row+3}:G{mingguan_start_row+3}", "(4)", title_format)
-
-    worksheet.merge_range(f"H{mingguan_start_row}:I{mingguan_start_row+1}", "Strategi Pembelajaran dan Metode Pembelajaran [Estimasi Waktu]", title_format)
-    worksheet.write(f"H{mingguan_start_row+2}", "Luring (offline)", title_format)
-    worksheet.write(f"I{mingguan_start_row+2}", "Daring (online)", title_format)
-    worksheet.write(f"H{mingguan_start_row+3}", "(5)", title_format)
-    worksheet.write(f"I{mingguan_start_row+3}", "(6)", title_format)
-
-    worksheet.merge_range(f"J{mingguan_start_row}:K{mingguan_start_row+2}", "Materi Pembelajaran dan Daftar Referensi \n[Pustaka]", title_format)
-    worksheet.merge_range(f"J{mingguan_start_row+3}:K{mingguan_start_row+3}", "(7)", title_format)
-
-    worksheet.merge_range(f"L{mingguan_start_row}:L{mingguan_start_row+2}", "Bobot Penilaian (%)", title_format)
-    worksheet.write(f"L{mingguan_start_row+3}", "(8)", title_format)
-
-    # Body RPS
-    mingguan_body_start_row = mingguan_start_row + 4
-    len_mingguan = len(matkul_data["minggu_ke"])
-
-    for i in range(len_mingguan):
-        worksheet.write(f'B{mingguan_body_start_row+i}', int(float(matkul_data["minggu_ke"][i])), text_cpl_format)
-
-        # === cari deskripsi subcpmk ===
-        subcpmk_kode = matkul_data["subcpmk_weekly"][i]
-        subcpmk_desc = ""
-        if "subcpmk_kode" in cpl_cpmk_sub and "subcpmk_desc" in cpl_cpmk_sub:
-            if subcpmk_kode in cpl_cpmk_sub["subcpmk_kode"]:
-                idx = cpl_cpmk_sub["subcpmk_kode"].index(subcpmk_kode)
-                subcpmk_desc = cpl_cpmk_sub["subcpmk_desc"][idx]
-
-        worksheet.write(
-            f'C{mingguan_body_start_row+i}',
-            f'[{subcpmk_kode}] {subcpmk_desc}',
-            text_cpl_format
-        )
-
-        indikator_text = matkul_data["indikator_numbered"][i]
-
-        # === Cek apakah ini baris evaluasi ===
-        if "Evaluasi UTS" in indikator_text or "Evaluasi UAS" in indikator_text:
-            # Merge dari C sampai K, isi dengan teks evaluasi
-            worksheet.merge_range(
-                f'D{mingguan_body_start_row+i}:K{mingguan_body_start_row+i}',
-                indikator_text,
-                title_format
-            )
-            # Tetap isi bobot di L
-            worksheet.write(f'L{mingguan_body_start_row+i}', int(float(matkul_data["bobot"][i])), text_cpl_format)
-            continue  # skip ke iterasi berikutnya
-
-        worksheet.merge_range(f'D{mingguan_body_start_row+i}:E{mingguan_body_start_row+i}', indikator_text, text_cpl_format)
-        worksheet.merge_range(f'F{mingguan_body_start_row+i}:G{mingguan_body_start_row+i}', matkul_data["kriteria_numbered"][i], text_cpl_format)
-
-        if "Tugas" in matkul_data["kriteria_numbered"][i]:
-            worksheet.write(f'H{mingguan_body_start_row+i}', f"Ekspository dan diskusi [TM : {rps_data['bobot_sks']}x50'] Task Based Learning [TB : {rps_data['bobot_sks']}x50']", text_cpl_format)
-        else:
-            worksheet.write(f'H{mingguan_body_start_row+i}', f"Ekspository dan diskusi [TM : {rps_data['bobot_sks']}x50']", text_cpl_format)
-
-        worksheet.write(f'I{mingguan_body_start_row+i}', f"Link materi [BM : {rps_data['bobot_sks']}x50']", text_cpl_format)
-
-        worksheet.merge_range(
-            f'J{mingguan_body_start_row+i}:K{mingguan_body_start_row+i}',
-            f'{matkul_data["materi_weekly_numbered"][i]} \n[{matkul_data["pustaka_weekly"][i]}]',
-            text_cpl_format
-        )
-
-        worksheet.write(f'L{mingguan_body_start_row+i}', float(matkul_data["bobot"][i]), text_cpl_format)
-
-    blueprint_start_row = mingguan_body_start_row + len_mingguan + 2
-
-    worksheet.merge_range(f"B{blueprint_start_row}:L{blueprint_start_row}", "BLUE PRINT PENILAIAN ATAU RENCANA ASESMEN DAN EVALUASI (RAE)", title_format)
-    
-    start_col_green = 1  # B
-    end2_col_green = 11
-    end_col_green = 2 + len(cpl_cpmk_sub["cpl_kode"])  # geser ke kanan sesuai jumlah CPL
-
-    start_green_cell = xl_rowcol_to_cell(blueprint_start_row, start_col_green)
-    end_green_cell = xl_rowcol_to_cell(blueprint_start_row, end_col_green)
-    start2_green_cell = xl_rowcol_to_cell(blueprint_start_row, end_col_green+1)
-    end2_green_cell = xl_rowcol_to_cell(blueprint_start_row, end2_col_green)
-
-    worksheet.merge_range(f'{start_green_cell}:{end_green_cell}', "KRITERIA PENILAIAN", title_format_green)
-    worksheet.merge_range(f'{start2_green_cell}:{end2_green_cell}', "RANGE NILAI", title_format_green)
-
-    worksheet.merge_range(f'B{blueprint_start_row+2}:B{blueprint_start_row+3}', "Bobot", title_format)
-    worksheet.merge_range(f'C{blueprint_start_row+2}:C{blueprint_start_row+3}', "Teknik dan Penilaian", title_format)
-
-    for col in range(start_cpl_col,end_cpl_col):
-        worksheet.write(blueprint_start_row + 1, col, cpl_cpmk_sub["cpl_kode"][col-3], title_format)
-        worksheet.write(blueprint_start_row + 2, col, total_per_cpl[col-3], percent_format_bold_fill)
-    
-    start_asm_cell = xl_rowcol_to_cell(blueprint_start_row+1, end_col_green+1)
-    end_asm_cell = xl_rowcol_to_cell(blueprint_start_row+2, end_col_green+1)
-
-    worksheet.merge_range(f'{start_asm_cell}:{end_asm_cell}', "Bobot Asesmen", title_format)
-
-    start_range_cell = xl_rowcol_to_cell(blueprint_start_row+1, end_col_green+2)
-    end_range_cell = xl_rowcol_to_cell(blueprint_start_row+7, 11)    
-
-    worksheet.merge_range(f'{start_range_cell}:{end_range_cell}', "Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sebagai berikut:\nRENTANGAN NILAI :\n85.00 - 100.00 : A (UNGGUL - LULUS)                \n75.00 - 84.99   : AB (BAIK SEKALI - LULUS)              \n70.00 - 74.99   : B (BAIK - LULUS)             \n60.00 - 69.99   : BC (CUKUP BAIK - TIDAK LULUS)\n55.00 - 59.99   : C (CUKUP - TIDAK LULUS)\n50.00 - 54.99   : CD (KURANG - TIDAK LULUS)\n44.00 - 49.99   : D (KURANG SEKALI - TIDAK LULUS)\n0.00 - 43.99     : E (GAGAL - TIDAK LULUS)", text_cpl_format)
-
-    # tentukan start row/col dan end row/col
-    start_row = blueprint_start_row + 3
-    start_col = 3
-    end_row = blueprint_start_row + 7
-    end_col = end_col_green + 1
-
-    # isi semua cell di range dengan border
-    for row in range(start_row, end_row + 1):
-        for col in range(start_col, end_col + 1):
-            worksheet.write(row, col, "", text_format)
-        for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
-            worksheet.write(f'B{blueprint_start_row+4+i}', cpl_cpmk_sub["subcpmk_kode"][i], text_format)
-
-    kriteria_per_subcpmk = []
-    rubrik_per_subcpmk = []
-
-    for kode in cpl_cpmk_sub["subcpmk_kode"]:
-        # cari semua kriteria untuk subcpmk ini
-        related_kriteria = [
-            matkul_data["kriteria"][i]
-            for i, wk in enumerate(matkul_data["subcpmk_weekly"])
-            if wk == kode
-        ]
-
-        # cek apakah ada "Tugas" 
-        if any("Tugas" in k for k in related_kriteria): 
-            kriteria_per_subcpmk.append("Ekspository dan diskusi (Oral Assessment), Multiple Choice Questions (MCQ) dan Short Answer Questions (SAQ)") 
-        else: 
-            kriteria_per_subcpmk.append("Kuis, diskusi, dan wawancara pemahaman (Oral Assessment)")
+        # Header
+        # Tambahkan logo
+        # Set tinggi baris header (sedikit lebih tinggi dari normal)
+        worksheet.set_row(1, 22)  # baris 2
+        worksheet.set_row(2, 22)  # baris 3
+        worksheet.set_row(3, 22)  # baris 4
+        worksheet.set_row(4, 26)  # baris 5
+        worksheet.merge_range("B2:B5", "", header_medium)
+        worksheet.insert_image("B2", "data/logo.png", {
+            "x_scale": 1.5,  # perkecil jika perlu
+            "y_scale": 1.5,
+            "x_offset": 10,  # sedikit geser biar rapi
+            "y_offset": 2,
+        })
         
-        # kumpulkan semua teks di dalam [ ... ]
-        rubrik_items = []
-        if related_kriteria:
-            for k in related_kriteria:
-                matches = re.findall(r"\[(.*?)\]", k)
-                rubrik_items.extend(matches)
-        rubrik_per_subcpmk.append(", ".join(rubrik_items) if rubrik_items else "")
+        worksheet.merge_range("C2:J2", "UNIVERSITAS WARMADEWA", header_medium)
+        worksheet.merge_range("C3:J3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+        worksheet.merge_range("C4:J4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet.merge_range("C5:J5", "RENCANA PEMBELAJARAN SEMESTER", header_big)
 
-    for i in range(len(cpl_cpmk_sub["subcpmk_kode"])): 
-        worksheet.write(f'C{blueprint_start_row+4+i}', kriteria_per_subcpmk[i], text_format)
+        kode_dokumen_rps = f'FTP-TKOM-RPS-{rps_data["kode_matkul"]}-{tahun}'
+        worksheet.merge_range("K2:L3", "Kode Dokumen", header_small)
+        worksheet.merge_range("K4:L5", str(kode_dokumen_rps), header_small)
 
-    for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
-        excel_row = blueprint_start_row + 3 + i               # Excel row number (1-based)
-        kode = matkul_data["cpl_bobot"][i]
-        # bobot sebagai fraction (mis. 25 -> 0.25) untuk format persen
-        try:
-            bobot = int(float(matkul_data["total_bobot"][i]))
-        except Exception:
-            bobot = 0
+        # Matakuliah Info
+        worksheet.merge_range("B6:C6", "MATA KULIAH (MK)", title_format)
+        worksheet.merge_range("D6:E6", "KODE", title_format)
+        worksheet.write("F6", "RUMPUN MK", title_format)
+        worksheet.merge_range("G6:I6", "BOBOT (SKS)", title_format)
+        worksheet.write("J6", "SEMESTER", title_format)
+        worksheet.merge_range("K6:L6", "Tgl. PENETAPAN", title_format)
 
-        if kode in cpl_col_map:
-            col = cpl_col_map[kode]                          # numeric col (0-based as used before)
-            col_letter = xlsxwriter.utility.xl_col_to_name(col)  # convert to letter, ex. 3 -> 'D'
-            # tulis nilai persen ke sel, pakai format percent_format
-            worksheet.write(f"{col_letter}{excel_row+1}", f'Nilai x {bobot}% \n({rubrik_per_subcpmk[i]})', percent_format)
+        worksheet.merge_range("B7:C9", matkul , text_format)
+        worksheet.merge_range("D7:E9", rps_data["kode_matkul"] , text_format)
+        worksheet.merge_range("F7:F9", rps_data["rumpun"], text_format)
+        worksheet.merge_range("G7:I9", str(int(rps_data["bobot_sks"])), text_format)
+        worksheet.merge_range("J7:J9", rps_data["semester"], text_format)
+        today = datetime.now()
+        worksheet.merge_range("K7:L9", today, date_format)
 
-    for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
-        worksheet.write(blueprint_start_row+3+i, end_col_green+1, matkul_data["total_bobot"][i], text_format)
+        # Otorisasi
+        worksheet.merge_range("B10:C10", "OTORISASI / PENGESAHAN", title_format)
+        worksheet.merge_range("D10:F10", "Dosen Pengembang RPS", title_format)    
+        worksheet.merge_range("G10:I10", "Koordinator Mata Kuliah", title_format)    
+        worksheet.merge_range("J10:L10", "Ketua Program Studi", title_format)
 
-    last_rps_start_row = blueprint_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 4
-    worksheet.merge_range(f'B{last_rps_start_row}:C{last_rps_start_row}', "JUMLAH", title_korelasi_format)
-    worksheet.merge_range(f'B{last_rps_start_row+1}:C{last_rps_start_row+1}', "NILAI MATA KULIAH", title_korelasi_format)
-    worksheet.merge_range(f'B{last_rps_start_row+2}:C{last_rps_start_row+2}', "NILAI CPL", title_korelasi_format)
+        worksheet.set_row(10, 110)  # baris 11
 
-    # buat label AA, BB, CC, ... sesuai jumlah CPL
-    labels = [chr(65 + i) * 2 for i in range(len(cpl_cpmk_sub["cpl_kode"]))]  # A=65 di ASCII
+        worksheet.merge_range("B11:C11", "OTORISASI / PENGESAHAN", text_otorisasi_format)
+        worksheet.merge_range("D11:F11", matkul_data["team_teaching"][0], text_otorisasi_format)    
+        worksheet.merge_range("G11:I11", "I Made Adi Bhaskara, S.Kom., M.T.", text_otorisasi_format)    
+        worksheet.merge_range("J11:L11", "Ir. I Made Surya Kumara, S.T., M.Sc.", text_otorisasi_format)
 
-    # tulis label di row last_rps_start_row
-    for idx, col in enumerate(range(start_cpl_col, end_cpl_col)):
-        worksheet.write(last_rps_start_row-1, col, labels[idx], title_korelasi_format)
-        worksheet.write(
-            last_rps_start_row + 1,
-            col,
-            f"{labels[idx]}/{total_per_cpl[idx]} x100",
+        # Placeholder CPL, CPMK, etc.
+        cpl_start_row = 12
+        worksheet.merge_range(f'C{cpl_start_row}:L{cpl_start_row}', "CPL-PRODI yang dibebankan pada MK", title_cpl_format)
+        for i in range(len(cpl_cpmk_sub["cpl_kode"])):
+            worksheet.write(f'C{cpl_start_row+1+i}', cpl_cpmk_sub["cpl_kode"][i], text_cpl_format)
+            worksheet.merge_range(f'D{cpl_start_row+1+i}:L{cpl_start_row+1+i}', cpl_cpmk_sub["cpl_desc"][i], text_cpl_format)
+
+        cpmk_start_row = cpl_start_row+1+len(cpl_cpmk_sub["cpl_kode"])
+        worksheet.merge_range(f'C{cpmk_start_row}:K{cpmk_start_row}', "Capaian Pembelajaran Mata Kuliah (CPMK)", title_cpl_format)
+        worksheet.write(f'L{cpmk_start_row}', "Bobot (%)", title_cpl_format)
+        for i in range(len(cpl_cpmk_sub["cpmk_kode"])):
+            worksheet.write(f'C{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_kode"][i], text_cpl_format)
+            worksheet.merge_range(f'D{cpmk_start_row+1+i}:K{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_desc"][i], text_cpl_format)
+            worksheet.write(f'L{cpmk_start_row+1+i}', int(matkul_data["bobot_per_cpmk"][i]), text_cpl_format)
+
+        subcpmk_start_row = cpmk_start_row+1+len(cpl_cpmk_sub["cpmk_kode"])
+        worksheet.merge_range(f'C{subcpmk_start_row}:L{subcpmk_start_row}', "Kemampuan akhir tiap tahapan belajar (Sub-CPMK)", title_cpl_format)
+        for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
+            worksheet.write(f'C{subcpmk_start_row+1+i}', cpl_cpmk_sub["subcpmk_kode"][i], text_cpl_format)
+            worksheet.merge_range(f'D{subcpmk_start_row+1+i}:L{subcpmk_start_row+1+i}', cpl_cpmk_sub["subcpmk_desc"][i], text_cpl_format)
+
+        korelasi_start_row = subcpmk_start_row+1+len(cpl_cpmk_sub["subcpmk_kode"])
+        worksheet.merge_range(f'C{korelasi_start_row}:L{korelasi_start_row}', "Korelasi CPL terhadap Sub CPMK", title_cpl_format)
+
+        
+        for row in range(korelasi_start_row+1, korelasi_start_row + 2 + len(cpl_cpmk_sub["subcpmk_kode"]) + 1):
+            for col in range(2, 12):  # D=3, L=11 (0-based index)
+                worksheet.write(row-1, col, "", text_cpl_format)
+        
+        # baris terakhir untuk total
+        total_row = korelasi_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 1
+        worksheet.write(total_row, 2, "Total", title_korelasi_format)
+
+        for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
+            worksheet.write(f'C{korelasi_start_row+2+i}', cpl_cpmk_sub["subcpmk_kode"][i], title_korelasi_format)
+
+        start_cpl_col = 3
+        end_cpl_col = start_cpl_col + len(cpl_cpmk_sub["cpl_kode"])
+        for col in range(start_cpl_col,end_cpl_col):
+            worksheet.write(korelasi_start_row, col, cpl_cpmk_sub["cpl_kode"][col-3], title_korelasi_format)
+
+        # # Isi bobot sesuai CPL
+        # cpl_col_map = {kode: start_cpl_col + idx for idx, kode in enumerate(cpl_cpmk_sub["cpl_kode"])}
+        # for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
+        #     row = korelasi_start_row + 1 + i
+        #     kode = matkul_data["cpl_bobot"][i]
+        #     bobot = int(float(matkul_data["total_bobot"][i])/100)
+        #     if kode in cpl_col_map:
+        #         col = cpl_col_map[kode]
+        #         worksheet.write(row, col, bobot, percent_format)
+
+        # === Tambahkan SUM total di baris "Total" ===
+        # for col in range(start_cpl_col, end_cpl_col):
+        #     col_letter = xlsxwriter.utility.xl_col_to_name(col)  # ubah index ke huruf Excel
+        #     start_row = korelasi_start_row + 1
+        #     end_row = korelasi_start_row + len(cpl_cpmk_sub["subcpmk_kode"])
+        #     formula = f"=SUM({col_letter}{start_row+1}:{col_letter}{end_row+1})"
+        #     worksheet.write_formula(total_row, col, formula, percent_format_bold)
+
+        # --- isi bobot sesuai CPL (dan akumulasikan totals per kolom) ---
+        cpl_col_map = {kode: start_cpl_col + idx for idx, kode in enumerate(cpl_cpmk_sub["cpl_kode"])}
+
+        # inisialisasi totals per kolom (numeric col index)
+        totals = {col: 0.0 for col in range(start_cpl_col, end_cpl_col)}
+
+        for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
+            excel_row = korelasi_start_row + 1 + i               # Excel row number (1-based)
+            kode = matkul_data["cpl_bobot"][i]
+            # bobot sebagai fraction (mis. 25 -> 0.25) untuk format persen
+            try:
+                bobot = float(matkul_data["total_bobot"][i]) / 100.0
+            except Exception:
+                bobot = 0.0
+
+            if kode in cpl_col_map:
+                col = cpl_col_map[kode]                          # numeric col (0-based as used before)
+                col_letter = xlsxwriter.utility.xl_col_to_name(col)  # convert to letter, ex. 3 -> 'D'
+                # tulis nilai persen ke sel, pakai format percent_format
+                worksheet.write(f"{col_letter}{excel_row+1}", bobot, percent_format)
+                # akumulasikan total per kolom
+                totals[col] += bobot
+
+        # === tulis total (sebagai angka persen) di baris "Total" tanpa formula ===
+        total_row = korelasi_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 2  # baris Excel tempat "Total"
+        total_per_cpl = []
+        for col in range(start_cpl_col, end_cpl_col):
+            col_letter = xlsxwriter.utility.xl_col_to_name(col)
+            total_value = totals.get(col, 0.0)
+            total_per_cpl.append(total_value)
+            worksheet.write(f"{col_letter}{total_row}", total_value, percent_format_bold)
+
+        worksheet.merge_range(f"B{cpl_start_row}:B{total_row}", "Capaian Pembelajaran", title_korelasi_format)
+
+        desc_start_row = total_row + 1
+        worksheet.set_row(desc_start_row-1, 110)  # baris 11
+        worksheet.write(f"B{desc_start_row}", "Deskripsi Singkat MK", title_korelasi_format)
+        
+        materi_str = ", ".join(matkul_data["materi_non_uts_uas"])
+        description_matkul = (
+            f"Mata kuliah {matkul} membahas konsep teoritis, metode, "
+            f"dan implementasi mengenai materi seperti {materi_str}."
+        )
+        worksheet.merge_range(f'C{desc_start_row}:L{desc_start_row}', description_matkul, text_cpl_format)
+
+        bahan_start_row = desc_start_row + 1
+        bahan_end_row = bahan_start_row + len(matkul_data["materi_non_uts_uas_numbered"]) - 1
+        worksheet.merge_range(f"B{bahan_start_row}:B{bahan_end_row}", "Bahan Kajian/Materi Pembelajaran", title_korelasi_format)
+        for i in range(len(matkul_data["materi_non_uts_uas_numbered"])):
+            worksheet.merge_range(f'C{desc_start_row+1+i}:L{desc_start_row+1+i}', matkul_data["materi_non_uts_uas_numbered"][i], text_cpl_format)
+
+        pustaka_start_row = bahan_end_row + 1
+        pustaka_utama_end_row = pustaka_start_row + len(matkul_data["pustaka_utama"])
+        pustaka_pendukung_end_row = pustaka_utama_end_row + len(matkul_data["pustaka_pendukung"]) + 1
+        worksheet.merge_range(f"B{pustaka_start_row}:B{pustaka_pendukung_end_row}", "Pustaka", title_korelasi_format)
+        worksheet.merge_range(f"C{pustaka_start_row}:L{pustaka_start_row}", "Utama:", title_cpl_format)
+        worksheet.merge_range(f"C{pustaka_utama_end_row+1}:L{pustaka_utama_end_row+1}", "Pendukung:", title_cpl_format)
+        
+        for i in range(len(matkul_data["pustaka_utama"])):
+            worksheet.merge_range(f'C{pustaka_start_row+1+i}:L{pustaka_start_row+1+i}', matkul_data["pustaka_utama"][i], text_cpl_format)
+        
+        for i in range(len(matkul_data["pustaka_pendukung"])):
+            worksheet.merge_range(f'C{pustaka_utama_end_row+2+i}:L{pustaka_utama_end_row+2+i}', matkul_data["pustaka_pendukung"][i], text_cpl_format)
+        
+        dosen_start_row = pustaka_pendukung_end_row + 1
+        dosen_end_row = dosen_start_row + len(matkul_data["team_teaching"]) - 1
+        worksheet.merge_range(f"B{dosen_start_row}:B{dosen_end_row}", "Dosen Pengampu", title_korelasi_format)
+        for i in range(len(matkul_data["team_teaching"])):
+            worksheet.merge_range(f'C{dosen_start_row+i}:L{dosen_start_row+i}', matkul_data["team_teaching"][i], text_cpl_format)
+
+        syarat_start_row = dosen_end_row + 1
+        dosen_end_row = syarat_start_row + len(matkul_data["matkul_syarat"]) - 1
+        if dosen_end_row == syarat_start_row:
+            worksheet.write(f"B{syarat_start_row}", "Matakuliah Syarat", title_korelasi_format)
+        else:
+            worksheet.merge_range(f"B{syarat_start_row}:B{dosen_end_row}", "Matakuliah Syarat", title_korelasi_format)
+        for i in range(len(matkul_data["matkul_syarat"])):
+            worksheet.merge_range(f'C{syarat_start_row+i}:L{syarat_start_row+i}', matkul_data["matkul_syarat"][i], text_cpl_format)
+
+        # Pertemuan Mingguan 
+        # Header
+        mingguan_start_row = dosen_end_row + 1 
+        worksheet.merge_range(f"B{mingguan_start_row}:B{mingguan_start_row+2}", "Mg Ke-", title_format)
+        worksheet.write(f"B{mingguan_start_row+3}", "(1)", title_format)
+
+        worksheet.merge_range(f"C{mingguan_start_row}:C{mingguan_start_row+2}", "Kemampuan akhir tiap tahapan belajar (Sub-CPMK)", title_format)
+        worksheet.write(f"C{mingguan_start_row+3}", "(2)", title_format)
+
+        worksheet.merge_range(f"D{mingguan_start_row}:G{mingguan_start_row}", "Penilaian", title_format)
+        worksheet.merge_range(f"D{mingguan_start_row+1}:E{mingguan_start_row+2}", "Indikator", title_format)
+        worksheet.merge_range(f"F{mingguan_start_row+1}:G{mingguan_start_row+2}", "Teknik dan Instrumen Penilaian", title_format)
+        worksheet.merge_range(f"D{mingguan_start_row+3}:E{mingguan_start_row+3}", "(3)", title_format)
+        worksheet.merge_range(f"F{mingguan_start_row+3}:G{mingguan_start_row+3}", "(4)", title_format)
+
+        worksheet.merge_range(f"H{mingguan_start_row}:I{mingguan_start_row+1}", "Strategi Pembelajaran dan Metode Pembelajaran [Estimasi Waktu]", title_format)
+        worksheet.write(f"H{mingguan_start_row+2}", "Luring (offline)", title_format)
+        worksheet.write(f"I{mingguan_start_row+2}", "Daring (online)", title_format)
+        worksheet.write(f"H{mingguan_start_row+3}", "(5)", title_format)
+        worksheet.write(f"I{mingguan_start_row+3}", "(6)", title_format)
+
+        worksheet.merge_range(f"J{mingguan_start_row}:K{mingguan_start_row+2}", "Materi Pembelajaran dan Daftar Referensi \n[Pustaka]", title_format)
+        worksheet.merge_range(f"J{mingguan_start_row+3}:K{mingguan_start_row+3}", "(7)", title_format)
+
+        worksheet.merge_range(f"L{mingguan_start_row}:L{mingguan_start_row+2}", "Bobot Penilaian (%)", title_format)
+        worksheet.write(f"L{mingguan_start_row+3}", "(8)", title_format)
+
+        # Body RPS
+        mingguan_body_start_row = mingguan_start_row + 4
+        len_mingguan = len(matkul_data["minggu_ke"])
+
+        for i in range(len_mingguan):
+            worksheet.write(f'B{mingguan_body_start_row+i}', int(float(matkul_data["minggu_ke"][i])), text_cpl_format)
+
+            # === cari deskripsi subcpmk ===
+            subcpmk_kode = matkul_data["subcpmk_weekly"][i]
+            subcpmk_desc = ""
+            if "subcpmk_kode" in cpl_cpmk_sub and "subcpmk_desc" in cpl_cpmk_sub:
+                if subcpmk_kode in cpl_cpmk_sub["subcpmk_kode"]:
+                    idx = cpl_cpmk_sub["subcpmk_kode"].index(subcpmk_kode)
+                    subcpmk_desc = cpl_cpmk_sub["subcpmk_desc"][idx]
+
+            worksheet.write(
+                f'C{mingguan_body_start_row+i}',
+                f'[{subcpmk_kode}] {subcpmk_desc}',
+                text_cpl_format
+            )
+
+            indikator_text = matkul_data["indikator_numbered"][i]
+
+            # === Cek apakah ini baris evaluasi ===
+            if "Evaluasi UTS" in indikator_text or "Evaluasi UAS" in indikator_text:
+                # Merge dari C sampai K, isi dengan teks evaluasi
+                worksheet.merge_range(
+                    f'D{mingguan_body_start_row+i}:K{mingguan_body_start_row+i}',
+                    indikator_text,
+                    title_format
+                )
+                # Tetap isi bobot di L
+                worksheet.write(f'L{mingguan_body_start_row+i}', int(float(matkul_data["bobot"][i])), text_cpl_format)
+                continue  # skip ke iterasi berikutnya
+
+            worksheet.merge_range(f'D{mingguan_body_start_row+i}:E{mingguan_body_start_row+i}', indikator_text, text_cpl_format)
+            worksheet.merge_range(f'F{mingguan_body_start_row+i}:G{mingguan_body_start_row+i}', matkul_data["kriteria_numbered"][i], text_cpl_format)
+
+            if "Tugas" in matkul_data["kriteria_numbered"][i]:
+                worksheet.write(f'H{mingguan_body_start_row+i}', f"Ekspository dan diskusi [TM : {rps_data['bobot_sks']}x50'] Task Based Learning [TB : {rps_data['bobot_sks']}x50']", text_cpl_format)
+            else:
+                worksheet.write(f'H{mingguan_body_start_row+i}', f"Ekspository dan diskusi [TM : {rps_data['bobot_sks']}x50']", text_cpl_format)
+
+            worksheet.write(f'I{mingguan_body_start_row+i}', f"Link materi [BM : {rps_data['bobot_sks']}x50']", text_cpl_format)
+
+            worksheet.merge_range(
+                f'J{mingguan_body_start_row+i}:K{mingguan_body_start_row+i}',
+                f'{matkul_data["materi_weekly_numbered"][i]} \n[{matkul_data["pustaka_weekly"][i]}]',
+                text_cpl_format
+            )
+
+            worksheet.write(f'L{mingguan_body_start_row+i}', float(matkul_data["bobot"][i]), text_cpl_format)
+
+        blueprint_start_row = mingguan_body_start_row + len_mingguan + 2
+
+        worksheet.merge_range(f"B{blueprint_start_row}:L{blueprint_start_row}", "BLUE PRINT PENILAIAN ATAU RENCANA ASESMEN DAN EVALUASI (RAE)", title_format)
+        
+        start_col_green = 1  # B
+        end2_col_green = 11
+        end_col_green = 2 + len(cpl_cpmk_sub["cpl_kode"])  # geser ke kanan sesuai jumlah CPL
+
+        start_green_cell = xl_rowcol_to_cell(blueprint_start_row, start_col_green)
+        end_green_cell = xl_rowcol_to_cell(blueprint_start_row, end_col_green)
+        start2_green_cell = xl_rowcol_to_cell(blueprint_start_row, end_col_green+1)
+        end2_green_cell = xl_rowcol_to_cell(blueprint_start_row, end2_col_green)
+
+        worksheet.merge_range(f'{start_green_cell}:{end_green_cell}', "KRITERIA PENILAIAN", title_format_green)
+        worksheet.merge_range(f'{start2_green_cell}:{end2_green_cell}', "RANGE NILAI", title_format_green)
+
+        worksheet.merge_range(f'B{blueprint_start_row+2}:B{blueprint_start_row+3}', "Bobot", title_format)
+        worksheet.merge_range(f'C{blueprint_start_row+2}:C{blueprint_start_row+3}', "Teknik dan Penilaian", title_format)
+
+        for col in range(start_cpl_col,end_cpl_col):
+            worksheet.write(blueprint_start_row + 1, col, cpl_cpmk_sub["cpl_kode"][col-3], title_format)
+            worksheet.write(blueprint_start_row + 2, col, total_per_cpl[col-3], percent_format_bold_fill)
+        
+        start_asm_cell = xl_rowcol_to_cell(blueprint_start_row+1, end_col_green+1)
+        end_asm_cell = xl_rowcol_to_cell(blueprint_start_row+2, end_col_green+1)
+
+        worksheet.merge_range(f'{start_asm_cell}:{end_asm_cell}', "Bobot Asesmen", title_format)
+
+        start_range_cell = xl_rowcol_to_cell(blueprint_start_row+1, end_col_green+2)
+        end_range_cell = xl_rowcol_to_cell(blueprint_start_row+7, 11)    
+
+        worksheet.merge_range(f'{start_range_cell}:{end_range_cell}', "Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sebagai berikut:\nRENTANGAN NILAI :\n85.00 - 100.00 : A (UNGGUL - LULUS)                \n75.00 - 84.99   : AB (BAIK SEKALI - LULUS)              \n70.00 - 74.99   : B (BAIK - LULUS)             \n60.00 - 69.99   : BC (CUKUP BAIK - TIDAK LULUS)\n55.00 - 59.99   : C (CUKUP - TIDAK LULUS)\n50.00 - 54.99   : CD (KURANG - TIDAK LULUS)\n44.00 - 49.99   : D (KURANG SEKALI - TIDAK LULUS)\n0.00 - 43.99     : E (GAGAL - TIDAK LULUS)", text_cpl_format)
+
+        # tentukan start row/col dan end row/col
+        start_row = blueprint_start_row + 3
+        start_col = 3
+        end_row = blueprint_start_row + 7
+        end_col = end_col_green + 1
+
+        # isi semua cell di range dengan border
+        for row in range(start_row, end_row + 1):
+            for col in range(start_col, end_col + 1):
+                worksheet.write(row, col, "", text_format)
+            for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
+                worksheet.write(f'B{blueprint_start_row+4+i}', cpl_cpmk_sub["subcpmk_kode"][i], text_format)
+
+        kriteria_per_subcpmk = []
+        rubrik_per_subcpmk = []
+
+        for kode in cpl_cpmk_sub["subcpmk_kode"]:
+            # cari semua kriteria untuk subcpmk ini
+            related_kriteria = [
+                matkul_data["kriteria"][i]
+                for i, wk in enumerate(matkul_data["subcpmk_weekly"])
+                if wk == kode
+            ]
+
+            # cek apakah ada "Tugas" 
+            if any("Tugas" in k for k in related_kriteria): 
+                kriteria_per_subcpmk.append("Ekspository dan diskusi (Oral Assessment), Multiple Choice Questions (MCQ) dan Short Answer Questions (SAQ)") 
+            else: 
+                kriteria_per_subcpmk.append("Kuis, diskusi, dan wawancara pemahaman (Oral Assessment)")
+            
+            # kumpulkan semua teks di dalam [ ... ]
+            rubrik_items = []
+            if related_kriteria:
+                for k in related_kriteria:
+                    matches = re.findall(r"\[(.*?)\]", k)
+                    rubrik_items.extend(matches)
+            rubrik_per_subcpmk.append(", ".join(rubrik_items) if rubrik_items else "")
+
+        for i in range(len(cpl_cpmk_sub["subcpmk_kode"])): 
+            worksheet.write(f'C{blueprint_start_row+4+i}', kriteria_per_subcpmk[i], text_format)
+
+        for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
+            excel_row = blueprint_start_row + 3 + i               # Excel row number (1-based)
+            kode = matkul_data["cpl_bobot"][i]
+            # bobot sebagai fraction (mis. 25 -> 0.25) untuk format persen
+            try:
+                bobot = int(float(matkul_data["total_bobot"][i]))
+            except Exception:
+                bobot = 0
+
+            if kode in cpl_col_map:
+                col = cpl_col_map[kode]                          # numeric col (0-based as used before)
+                col_letter = xlsxwriter.utility.xl_col_to_name(col)  # convert to letter, ex. 3 -> 'D'
+                # tulis nilai persen ke sel, pakai format percent_format
+                worksheet.write(f"{col_letter}{excel_row+1}", f'Nilai x {bobot}% \n({rubrik_per_subcpmk[i]})', percent_format)
+
+        for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
+            worksheet.write(blueprint_start_row+3+i, end_col_green+1, matkul_data["total_bobot"][i], text_format)
+
+        last_rps_start_row = blueprint_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 4
+        worksheet.merge_range(f'B{last_rps_start_row}:C{last_rps_start_row}', "JUMLAH", title_korelasi_format)
+        worksheet.merge_range(f'B{last_rps_start_row+1}:C{last_rps_start_row+1}', "NILAI MATA KULIAH", title_korelasi_format)
+        worksheet.merge_range(f'B{last_rps_start_row+2}:C{last_rps_start_row+2}', "NILAI CPL", title_korelasi_format)
+
+        # buat label AA, BB, CC, ... sesuai jumlah CPL
+        labels = [chr(65 + i) * 2 for i in range(len(cpl_cpmk_sub["cpl_kode"]))]  # A=65 di ASCII
+
+        # tulis label di row last_rps_start_row
+        for idx, col in enumerate(range(start_cpl_col, end_cpl_col)):
+            worksheet.write(last_rps_start_row-1, col, labels[idx], title_korelasi_format)
+            worksheet.write(
+                last_rps_start_row + 1,
+                col,
+                f"{labels[idx]}/{total_per_cpl[idx]} x100",
+                title_korelasi_format,
+            )
+
+        # merge semua kolom di row last_rps_start_row untuk teks gabungan
+        merged_start = xlsxwriter.utility.xl_col_to_name(start_cpl_col)
+        merged_end = xlsxwriter.utility.xl_col_to_name(end_cpl_col - 1)
+        worksheet.merge_range(
+            f"{merged_start}{last_rps_start_row+1}:{merged_end}{last_rps_start_row+1}",
+            " + ".join(labels),
             title_korelasi_format,
         )
 
-    # merge semua kolom di row last_rps_start_row untuk teks gabungan
-    merged_start = xlsxwriter.utility.xl_col_to_name(start_cpl_col)
-    merged_end = xlsxwriter.utility.xl_col_to_name(end_cpl_col - 1)
-    worksheet.merge_range(
-        f"{merged_start}{last_rps_start_row+1}:{merged_end}{last_rps_start_row+1}",
-        " + ".join(labels),
-        title_korelasi_format,
-    )
 
+        workbook.close()
+        output.seek(0)
 
-    workbook.close()
-    output.seek(0)
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=f"RPS_RPM_RUB_{matkul}_{tahun}.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        logger.error(f"Error generating Excel file: {e}")
+        abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
 
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=f"RPS_RPM_RUB_{matkul}_{tahun}.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+# Add error handlers
+@app.errorhandler(400)
+def bad_request(error):
+    return render_template('error.html', 
+                         error_code=400, 
+                         error_message=error.description), 400
 
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('error.html', 
+                         error_code=404, 
+                         error_message=error.description), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('error.html', 
+                         error_code=500, 
+                         error_message=error.description), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
