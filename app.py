@@ -185,7 +185,13 @@ def get_matkul_data(nama_matkul, tahun):
         if col_i: indikator.append(str(col_i))
         if col_j: kriteria.append(str(col_j))
         if col_k: materi.append(str(col_k))
-        if col_l: bobot.append(str(col_l))
+        if col_l is None:
+            # skip (jangan append, supaya tidak bikin array kepanjangan)
+            continue
+        elif str(col_l).strip() == "-":
+            bobot.append("0")
+        else:
+            bobot.append(str(col_l))
         if col_m: pustaka_weekly.append(str(col_m))
 
         if col_o: cpl_bobot.append(str(col_o))
@@ -503,6 +509,17 @@ def download_rps():
             "font_size": 12,
             "border": 1,
             "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True
+        })
+
+        title_kontrak_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "left",
             "valign": "vcenter",
             "bold": True,
             "font_color": "black",
@@ -1292,13 +1309,157 @@ def download_rps():
                 worksheet_rub.write(row, 4, sub_desc, text_cpl_format)
                 row += 1
         
+        #################################### KONTRAK ##################################
+        """
+        Membuat sheet KONTRAK dengan header mirip RPS template.
+        """
+        worksheet_kontrak = workbook.add_worksheet("KTR")
+
+        # Atur ukuran kolom
+        worksheet_kontrak.set_column("A:A", 5)        # Kolom A kecil
+        worksheet_kontrak.set_column("B:L", 18)       # Kolom B - L agak besar (2x normal)
+
+        # --- Header dengan logo ---
+        worksheet_kontrak.set_row(1, 22)  # baris 2
+        worksheet_kontrak.set_row(2, 22)  # baris 3
+        worksheet_kontrak.set_row(3, 22)  # baris 4
+        worksheet_kontrak.set_row(4, 26)  # baris 5
+        worksheet_kontrak.merge_range("B2:B5", "", header_medium)
+
+        worksheet_kontrak.insert_image("B2", "data/logo.png", {
+            "x_scale": 1.5,
+            "y_scale": 1.5,
+            "x_offset": 10,
+            "y_offset": 2,
+        })
+
+        worksheet_kontrak.merge_range("C2:J2", "UNIVERSITAS WARMADEWA", header_medium)
+        worksheet_kontrak.merge_range("C3:J3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+        worksheet_kontrak.merge_range("C4:J4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet_kontrak.merge_range("C5:J5", "KONTRAK PERKULIAHAN", header_big)
+
+        kode_dokumen_kontrak = f'FTP-TKOM-KTR-{rps_data["kode_matkul"]}-{tahun}'
+        worksheet_kontrak.merge_range("K2:L3", "Kode Dokumen", header_small)
+        worksheet_kontrak.merge_range("K4:L5", str(kode_dokumen_kontrak), header_small)
+
+        # --- Info Mata Kuliah ---
+        worksheet_kontrak.merge_range("B6:D6", "MATA KULIAH (MK)", title_format)
+        worksheet_kontrak.merge_range("E6:F6", "KODE", title_format)
+        worksheet_kontrak.merge_range("G6:H6", "RUMPUN MK", title_format)
+        worksheet_kontrak.merge_range("I6:J6", "BOBOT (SKS)", title_format)
+        worksheet_kontrak.merge_range("K6:L6", "SEMESTER", title_format)
+
+        worksheet_kontrak.merge_range("B7:D7", matkul, text_format)
+        worksheet_kontrak.merge_range("E7:F7", rps_data["kode_matkul"], text_format)
+        worksheet_kontrak.merge_range("G7:H7", rps_data["rumpun"], text_format)
+        worksheet_kontrak.merge_range("I7:J7", str(int(rps_data["bobot_sks"])), text_format)
+        worksheet_kontrak.merge_range("K7:L7", rps_data["semester"], text_format)
+
+        worksheet_kontrak.merge_range("B8:F8", "DOSEN PENGAMPU", title_format)
+        worksheet_kontrak.write("G8", "KELAS", title_format)
+        worksheet_kontrak.write("H8", "JUMLAH MAHASISWA", title_format)
+        worksheet_kontrak.merge_range("I8:J8", "HARI PERTEMUAN", title_format)
+        worksheet_kontrak.merge_range("K8:L8", "TEMPAT PERTEMUAN", title_format)
+
+        # Buat 4 baris kosong dulu
+        for i in range(4):
+            worksheet_kontrak.merge_range(f"B{9+i}:F{9+i}", "", text_cpl_format)
+
+        # Isi nama dosen sesuai jumlah
+        if len(matkul_data["team_teaching"]) < 5:
+            for i in range(len(matkul_data["team_teaching"])):                
+                worksheet_kontrak.write(f"B{9+i}", matkul_data["team_teaching"][i], text_cpl_format)
+        else:
+            worksheet_kontrak.write(f"B{9+i}", matkul_data["team_teaching"][0], text_cpl_format)
+
+        worksheet_kontrak.merge_range("G9:G12", matkul_data["kelas"][0], text_format)
+        worksheet_kontrak.merge_range("H9:H12", matkul_data["jml_mhs"][0], text_format)
+        worksheet_kontrak.merge_range("I9:J12", matkul_data["hari"][0], text_format)
+        worksheet_kontrak.merge_range("K9:L12", matkul_data["tempat"][0], text_format)
+
+        # --- Isi Kontrak Placeholder ---
+        worksheet_kontrak.merge_range("B13:L13", "KONTRAK PERKULIAHAN", title_cpl_format)
+
+        kontrak_sections = [
+            "MANFAAT MATA KULIAH",
+            "DESKRIPSI SINGKAT MATA KULIAH",
+            "TUJUAN PEMBELAJARAN",
+            "MATERI / KAJIAN PERKULIAHAN",
+            "STRATEGI PEMBELAJARAN",
+            "REFRENSI",
+            "TUGAS - TUGAS",
+            "KRITERIA PENILAIAN",
+            "TATA TERTIB",
+            "JADWAL PERKULIAHAN",
+            "KETENTUAN REMEDIAL",
+            "PERNYATAAN",
+        ]
+
+        kontrak_sections_2 = [
+            "\n".join(cpl_cpmk_sub["cpl_desc"]),  # manfaat = semua CPL
+            description_matkul,                   # deskripsi singkat MK
+            "\n".join(cpl_cpmk_sub["subcpmk_desc"]),  # tujuan pembelajaran
+            "\n".join(matkul_data["materi_non_uts_uas_numbered"]),  # materi perkuliahan
+            """Metode pembelajaran dalam kelas ini adalah menggunakan metode small group discussion, Cooperative learning, dan Contextual learning. Sedangkan bentuk pembelajaran adalah berupa : 
+        1. Kuliah tatap muka (luring)
+        2. Diskusi antar mahasiswa sesuai kelompok serta bimbingan dengan dosen sebagai fasilitator;
+        3. Praktik sederhana berupa pembuatan tugas kelompok dan individu.""",
+            "\n".join(matkul_data["pustaka_utama"] + matkul_data["pustaka_pendukung"]),  # referensi
+            """1. Tugas perkuliahan dapat berupa tugas individu maupun tugas kelompok (dilihat pada RTM)
+        2. Tugas diberikan oleh dosen pengampu mata kuliah berdasarkan materi yang sedang dibahas, dapat berupa gambar dan uraian
+        3. Format tugas maupun waktu pengumpulan tugas ditentukan pada saat tugas diberikan oleh dosen pengampu.
+        4. Keterlambatan pengumpulan tugas dari waktu yang telah ditentukan akan mendapat pengurangan nilai.""",
+            """Nilai akhir mata kuliah diperoleh dari beberapa komponen penilaian seperti Latihan soal, Tugas Mandiri, Quiz, UTS, dan UAS. Bobot penilaian secara umum dikelompokkan sebagai berikut :                                                                                                                                                                                                                                                                                                                               
+        1. Latihan soal 
+        2. Tugas Mandiri
+        3. Quiz
+        4. Ujian Tengah Semester 
+        5. Ujian Akhir Semester
+
+        Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sbb:
+        RENTANGAN NILAI :
+        80.00 – 100     = A         Unggul
+        75.00 – 79.99  = AB        Baik Sekali
+        70.00 – 74.99  = B          Baik
+        60.00 – 69.99  = BC        Cukup Baik
+        55.00 – 59.99  = C          Cukup
+        50.00 – 54.99  = CD        Kurang
+        44.00 – 49.99  = D          Sangat Kurang
+        0.00 – 43.99    = E          Gagal
+        0.00 – 0.00      = T          Tidak Aktif""",
+            """1. Mahasiswa diwajibkan menggunakan pakaian yang pantas (kemeja/kaos tidak oblong) pada waktu mengikuti perkuliahan di kelas maupun online.
+        2. Mahasiswa wajib menaktifkan video kamera saat melakukan kuliah daring / zoom meeting.
+        3. Keterlambatan masuk di kelas hanya diijinkan maksimal 60 menit dari jadwal, kecuali ada hal-hal yang bersifat khusus.
+        4. Pada perkuliahan daring/online, mahasiswa tidak diperkenankan melakukan keributan di kelas dalam bentuk apapun selama perkuliahan berlangsung, kecuali pada saat diskusi (saat zoom meeting mode mute kecuali saat diijinkan berbicara).
+        5. Mahasiswa wajib hadir minimal 75 % dari tatap muka, jika dibawah 75% maka tidak diperkenankan mengikuti remidi
+        6. Tidak ada ujian susulan untuk UTS dan UAS, kecuali dengan alasan jelas.
+        7. Hasil evaluasi mahasiswa wajib dikembalikan pada mahasiswa 2 minggu setelah ujian berakhir.
+        8. Protes nilai dilayani paling lama 1 minggu setelah nilai keluar
+        9. Mahasiswa diperkenankan membawa makanan ringan dan minuman didalam kelas saat praktik di lab. dan diharapkan untuk menjaga kebersihan""",
+            "Terlampir",  # jadwal
+            "Hal-hal lain yang belum dicantumkan disini akan diatur kemudian.",  # ketentuan remedial
+            """Saya yang bertandatangan dibawah ini menyatakan bahwa :
+        (1) Telah memahami dan bersedia untuk menerima serta mentaati semua yang telah diuraikan dalam kontrak perkuliahan ini dengan penuh kesadaran dan tanggungjawab.
+        (2) Bersedia menerima sanksi atas pelanggaran yang dilakukan."""  # pernyataan
+        ]
+
+        # --- Tulis ke worksheet ---
+        for i, (judul, isi) in enumerate(zip(kontrak_sections, kontrak_sections_2)):
+            row = 14 + i
+            worksheet_kontrak.write(f"B{row}", i + 1, text_format)
+            worksheet_kontrak.merge_range(f"C{row}:E{row}", judul, title_kontrak_format)
+            worksheet_kontrak.merge_range(f"F{row}:L{row}", isi, text_cpl_format)
+        
+
         workbook.close()
         output.seek(0)
+
+
 
         return send_file(
             output,
             as_attachment=True,
-            download_name=f"RPS_RPM_RUB_{matkul}_{tahun}.xlsx",
+            download_name=f"RPS_RPM_RUB_KTR_PORTO_{matkul}_{tahun}.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     # except Exception as e:
