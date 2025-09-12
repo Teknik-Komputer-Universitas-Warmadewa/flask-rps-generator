@@ -304,8 +304,6 @@ def get_matkul_data(nama_matkul, tahun):
             seen.append(cpmk)
             bobot_per_cpmk.append(bobot_dict[cpmk])
 
-    print("bobot :", bobot_per_cpmk)
-
     return {
         "pustaka_utama": pustaka_utama,
         "pustaka_pendukung": pustaka_pendukung,
@@ -642,6 +640,23 @@ def download_rps():
         worksheet.merge_range("J11:L11", "Ir. I Made Surya Kumara, S.T., M.Sc.", text_otorisasi_format)
 
         # Placeholder CPL, CPMK, etc.
+        # Buat struktur baru tanpa duplikat
+        unique_cpmk = {}
+        unique_cpl = {}
+        for kode, desc in zip(cpl_cpmk_sub["cpmk_kode"], cpl_cpmk_sub["cpmk_desc"]):
+            if kode not in unique_cpmk:
+                unique_cpmk[kode] = desc  # simpan hanya sekali
+        
+        for kode, desc in zip(cpl_cpmk_sub["cpl_kode"], cpl_cpmk_sub["cpl_desc"]):
+            if kode not in unique_cpl:
+                unique_cpl[kode] = desc  # simpan hanya sekali
+
+        # Replace data lama dengan yang unik
+        cpl_cpmk_sub["cpl_kode"] = list(unique_cpl.keys())
+        cpl_cpmk_sub["cpl_desc"] = list(unique_cpl.values())
+        cpl_cpmk_sub["cpmk_kode"] = list(unique_cpmk.keys())
+        cpl_cpmk_sub["cpmk_desc"] = list(unique_cpmk.values())
+
         cpl_start_row = 12
         worksheet.merge_range(f'C{cpl_start_row}:L{cpl_start_row}', "CPL-PRODI yang dibebankan pada MK", title_cpl_format)
         for i in range(len(cpl_cpmk_sub["cpl_kode"])):
@@ -652,18 +667,6 @@ def download_rps():
         worksheet.merge_range(f'C{cpmk_start_row}:K{cpmk_start_row}', "Capaian Pembelajaran Mata Kuliah (CPMK)", title_cpl_format)
         worksheet.write(f'L{cpmk_start_row}', "Bobot (%)", title_cpl_format)
 
-        print(cpl_cpmk_sub["cpmk_kode"])
-        print(matkul_data["bobot_per_cpmk"])
-        # Buat struktur baru tanpa duplikat
-        unique_cpmk = {}
-        for kode, desc in zip(cpl_cpmk_sub["cpmk_kode"], cpl_cpmk_sub["cpmk_desc"]):
-            if kode not in unique_cpmk:
-                unique_cpmk[kode] = desc  # simpan hanya sekali
-
-        # Replace data lama dengan yang unik
-        cpl_cpmk_sub["cpmk_kode"] = list(unique_cpmk.keys())
-        cpl_cpmk_sub["cpmk_desc"] = list(unique_cpmk.values())
-        
         for i in range(len(cpl_cpmk_sub["cpmk_kode"])):
             worksheet.write(f'C{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_kode"][i], text_cpl_format)
             worksheet.merge_range(f'D{cpmk_start_row+1+i}:K{cpmk_start_row+1+i}', cpl_cpmk_sub["cpmk_desc"][i], text_cpl_format)
