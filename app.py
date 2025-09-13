@@ -1565,7 +1565,7 @@ def download_rps():
         worksheet_porto.merge_range(f"E10:{end_col_letter}10", matkul_data["tahun_ajar"][0], text_cpl_format)
 
         # Dosen pengampu
-        worksheet_porto.merge_range(f"B11:D16", "Dosen Pengampu", title_cpl_format)
+        worksheet_porto.merge_range(f"B11:D14", "Dosen Pengampu", title_cpl_format)
 
         # Isi dosen mulai dari baris 12
         for i, dosen in enumerate(matkul_data["team_teaching"]):
@@ -1573,8 +1573,6 @@ def download_rps():
 
         workbook.close()
         output.seek(0)
-
-
 
         return send_file(
             output,
