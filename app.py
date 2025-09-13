@@ -749,6 +749,8 @@ def download_rps():
         # inisialisasi totals per kolom (numeric col index)
         totals = {col: 0.0 for col in range(start_cpl_col, end_cpl_col)}
 
+        bobot_per_cpl = []
+
         for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
             excel_row = korelasi_start_row + 1 + i               # Excel row number (1-based)
             kode = matkul_data["cpl_bobot"][i]
@@ -763,6 +765,7 @@ def download_rps():
                 col_letter = xlsxwriter.utility.xl_col_to_name(col)  # convert to letter, ex. 3 -> 'D'
                 # tulis nilai persen ke sel, pakai format percent_format
                 worksheet.write(f"{col_letter}{excel_row+1}", bobot, percent_format)
+                bobot_per_cpl.append(bobot)
                 # akumulasikan total per kolom
                 totals[col] += bobot
 
@@ -1570,6 +1573,141 @@ def download_rps():
         # Isi dosen mulai dari baris 12
         for i, dosen in enumerate(matkul_data["team_teaching"]):
             worksheet_porto.merge_range(f"E{11+i}:{end_col_letter}{11+i}", dosen, text_cpl_format)
+
+        # --- Step 1: Siapkan kriteria_kode ---
+        kriteria_kode = []
+        for item in matkul_data["kriteria_numbered"]:
+            before_colon = item.split(":")[0].strip()
+            inside_bracket = re.search(r"\[(.*?)\]", item)
+            inside_bracket = inside_bracket.group(0) if inside_bracket else ""
+            kriteria_kode.append(f"{before_colon} {inside_bracket}")
+
+        # --- Step 2: Mapping subcpmk → cpl, cpmk ---
+        mapping = {
+            sub: (matkul_data["cpl_bobot"][i], matkul_data["cpmk_bobot"][i])
+            for i, sub in enumerate(matkul_data["subcpmk_bobot"])
+        }
+
+        # --- Step 3: Isi cpl_weekly & cpmk_weekly ---
+        cpl_weekly = []
+        cpmk_weekly = []
+        for sub in matkul_data["subcpmk_weekly"]:
+            cpl, cpmk = mapping[sub]
+            cpl_weekly.append(cpl)
+            cpmk_weekly.append(cpmk)
+
+        # --- Step 4: Buat data_porto sebagai dict ---
+        data_porto = [
+            {
+                "kriteria_kode": kriteria_kode[i],
+                "subcpmk": matkul_data["subcpmk_weekly"][i],
+                "cpmk": cpmk_weekly[i],
+                "cpl": cpl_weekly[i],
+                "bobot": matkul_data["bobot"][i]
+            }
+            for i in range(len(matkul_data["subcpmk_weekly"]))
+        ]
+
+        # --- Step 5: Reorder by cpl ---
+        data_porto_reordered = sorted(data_porto, key=lambda x: x["cpl"])
+
+        # --- Step 6: Sisipkan "NILAI PER CPL" bila CPL berubah ---
+        final_data = []
+        last_cpl = None
+        for row in data_porto_reordered:
+            current_cpl = row["cpl"]
+            if last_cpl is not None and current_cpl != last_cpl:
+                final_data.append({
+                    "kriteria_kode": "NILAI PER CPL",
+                    "subcpmk": "",
+                    "cpmk": "",
+                    "cpl": "",
+                    "bobot": ""
+                })
+            final_data.append(row)
+            last_cpl = current_cpl
+
+        final_data.append({
+                    "kriteria_kode": "NILAI PER CPL",
+                    "subcpmk": "",
+                    "cpmk": "",
+                    "cpl": "",
+                    "bobot": ""
+                })
+        final_data.append({
+                    "kriteria_kode": "NILAI AKHIR",
+                    "subcpmk": "",
+                    "cpmk": "",
+                    "cpl": "",
+                    "bobot": ""
+                })
+        final_data.append({
+                    "kriteria_kode": "HURUF",
+                    "subcpmk": "",
+                    "cpmk": "",
+                    "cpl": "",
+                    "bobot": ""
+                })
+        
+        # --- Step 7: Tulis ke worksheet ---
+        row_start = 15
+        col_start = 4  # Kolom E = index 4 kalau 0-based
+
+        # B15:D18
+        worksheet_porto.merge_range("B15:D15", "Threshold (%)", title_cpl_format)
+        worksheet_porto.merge_range("B16:D16", "Rerata CPL", title_cpl_format)
+        worksheet_porto.merge_range("B17:D17", "CPL-PRODI yang dibebankan pada MK", title_cpl_format)
+        worksheet_porto.merge_range("B18:D18", "Ketercapaian Tiap CPL (%)", title_cpl_format)
+
+        # B19:D19
+        worksheet_porto.merge_range("B19:B24", "NO", title_cpl_format)
+        worksheet_porto.merge_range("C19:C24", "NIM", title_cpl_format)
+        worksheet_porto.merge_range("D19:D24", "NAMA MAHASISWA", title_cpl_format)
+
+        # --- Header bagian final_data ---
+        current_col = col_start  # mulai dari kolom E
+
+        for item in final_data:
+            cpl = item["cpl"]
+            cpmk = item["cpmk"]
+            kriteria = item["kriteria_kode"]
+            bobot = item["bobot"]
+
+            # --- Row 17: CPL ---
+            if cpl and "NILAI PER CPL" not in kriteria:
+                worksheet_porto.merge_range(row_start+2, current_col, row_start+2, current_col+2, cpl, title_cpl_format)
+                span = 3
+            else:
+                worksheet_porto.write(row_start+2, current_col, cpl or "", title_cpl_format)
+                span = 1
+
+            # --- Row 19: CPMK ---
+            if cpmk and "NILAI PER CPL" not in kriteria:
+                worksheet_porto.merge_range(row_start+4, current_col, row_start+4, current_col+span-1, cpmk, text_cpl_format)
+            else:
+                worksheet_porto.write(row_start+4, current_col, cpmk or "", text_cpl_format)
+
+            # --- Row 20: Kriteria kode ---
+            if kriteria == "NILAI PER CPL":
+                worksheet_porto.write(row_start+5, current_col, kriteria, text_cpl_format)
+            else:
+                worksheet_porto.merge_range(row_start+5, current_col, row_start+5, current_col+span-1, kriteria, text_cpl_format)
+
+            # --- Row 21: Subheader ---
+            if span == 3:
+                worksheet_porto.write(row_start+6, current_col, "NILAI", text_cpl_format)
+                worksheet_porto.write(row_start+6, current_col+1, "Tambahan", text_cpl_format)
+                worksheet_porto.write(row_start+6, current_col+2, "SUB BOBOT", text_cpl_format)
+            else:
+                worksheet_porto.write(row_start+6, current_col, "", text_cpl_format)
+
+            # --- Row 23: Bobot ---
+            if span == 3:
+                worksheet_porto.write(row_start+8, current_col+2, bobot, text_cpl_format)
+            else:
+                worksheet_porto.write(row_start+8, current_col, bobot if bobot else "", text_cpl_format)
+
+            current_col += span
 
         workbook.close()
         output.seek(0)
