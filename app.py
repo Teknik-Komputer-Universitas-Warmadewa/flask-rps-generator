@@ -538,6 +538,16 @@ def download_rps():
         })
 
         # Format text
+        text_ttd_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "align": "center",
+            "valign": "vcenter",
+            "text_wrap": True,
+            "font_color": "black"
+        })
+
+        # Format text
         text_cpl_format = workbook.add_format({
             "font_name": "Tahoma",
             "font_size": 12,
@@ -1283,6 +1293,8 @@ def download_rps():
             ]
             tugas_str = "\n ".join(related_kriteria)
 
+            worksheet_rub.set_row(13, 15*len(related_kriteria))  # baris 14
+
             worksheet_rub.merge_range("B14:C14", "Tugas", title_cpl_format)
             worksheet_rub.merge_range("D14:I14", tugas_str, text_cpl_format)
 
@@ -1444,12 +1456,120 @@ def download_rps():
         ]
 
         # --- Tulis ke worksheet ---
+        worksheet_kontrak.set_row(13, 15*8)  # baris 14
+        worksheet_kontrak.set_row(14, 15*8)  # baris 15
+        worksheet_kontrak.set_row(15, 15*8)  # baris 16
+        worksheet_kontrak.set_row(16, 15*len(matkul_data["materi_non_uts_uas_numbered"]))  # baris 17
+        worksheet_kontrak.set_row(17, 15*8)  # baris 18
+        worksheet_kontrak.set_row(18, 15*(len(matkul_data["pustaka_utama"])+len(matkul_data["pustaka_pendukung"])))  # baris 19
+        worksheet_kontrak.set_row(19, 15*8)  # baris 20
+        worksheet_kontrak.set_row(20, 15*20)  # baris 21
+        worksheet_kontrak.set_row(21, 15*15)  # baris 22
+        worksheet_kontrak.set_row(24, 15*8)  # baris 25
         for i, (judul, isi) in enumerate(zip(kontrak_sections, kontrak_sections_2)):
             row = 14 + i
             worksheet_kontrak.write(f"B{row}", i + 1, text_format)
             worksheet_kontrak.merge_range(f"C{row}:E{row}", judul, title_kontrak_format)
             worksheet_kontrak.merge_range(f"F{row}:L{row}", isi, text_cpl_format)
         
+        today = datetime.now().strftime("%d-%m-%Y")
+        worksheet_kontrak.merge_range("B28:L28", today, text_ttd_format)
+        worksheet_kontrak.merge_range("B29:D29", "Perwakilan Mahasiswa", text_ttd_format)
+        worksheet_kontrak.merge_range("B35:D35", "_______________________________", text_ttd_format)
+        worksheet_kontrak.merge_range("B36:D36", "NIM.", text_ttd_format)
+
+        worksheet_kontrak.merge_range("J29:L29", "Koordinator MK", text_ttd_format)
+        worksheet_kontrak.merge_range("J35:L35", matkul_data["team_teaching"][0], text_ttd_format)
+        worksheet_kontrak.merge_range("J36:L36", matkul_data["nik"][0], text_ttd_format)
+
+        # Bagian Mengetahui
+        worksheet_kontrak.merge_range("F40:H40", "Mengetahui", text_ttd_format)
+        worksheet_kontrak.merge_range("F41:H41", "Ketua Program Studi Teknik Komputer", text_ttd_format)
+        worksheet_kontrak.merge_range("F42:H42", "Fakultas Teknik dan Perencanaan", text_ttd_format)
+        worksheet_kontrak.merge_range("F43:H43", "Universitas Warmadewa", text_ttd_format)
+
+        # Spasi tanda tangan (misalnya 2–3 baris kosong)
+        worksheet_kontrak.merge_range("F48:H48", "I Made Surya Kumara, S.T., M.Sc.", text_ttd_format)
+        worksheet_kontrak.merge_range("F49:H49", "NIK. 230700584", text_ttd_format)
+
+        ############################## PORTO ############################################
+        # --- Buat worksheet Portofolio Penilaian ---
+        sheet_title_porto = f"LEMBAR KERJA - PORTO"
+        worksheet_porto = workbook.add_worksheet(sheet_title_porto)
+
+        # Helper: konversi index kolom ke huruf Excel
+        def colnum_to_excel_name(n):
+            """Convert column number (1=A, 2=B, ...) to Excel letter(s)."""
+            name = ""
+            while n > 0:
+                n, remainder = divmod(n - 1, 26)
+                name = chr(65 + remainder) + name
+            return name
+
+        # Hitung total kolom untuk portofolio
+        total_cols = (len(matkul_data["subcpmk_weekly"]) * 3) + len(cpl_cpmk_sub["cpl_kode"]) + 2  
+
+        # Mulai dari kolom E → index = 5
+        end_col_index = 5 + total_cols - 1  
+        end_col_letter = colnum_to_excel_name(end_col_index)
+
+        end_col_header = end_col_index - 6
+        end_col_header_letter = colnum_to_excel_name(end_col_header)
+
+        startkode_col_header = end_col_header + 1
+        startkode_col_header_letter = colnum_to_excel_name(startkode_col_header)
+
+        # Atur ukuran kolom sama dengan rubrik
+        worksheet_porto.set_column("A:B", 2)        
+        worksheet_porto.set_column("C:C", 15)       
+        worksheet_porto.set_column("D:D", 30)
+        worksheet_porto.set_column(f"E:{end_col_letter}", 3)       
+        worksheet_porto.set_row(1, 22)  # baris 2
+        worksheet_porto.set_row(2, 22)  # baris 3
+        worksheet_porto.set_row(3, 22)  # baris 4
+        worksheet_porto.set_row(4, 28)  # baris 5
+
+        # Logo
+        worksheet_porto.merge_range("B2:C5", "", header_medium)
+        worksheet_porto.insert_image("B2", "data/logo.png", {
+            "x_scale": 1.5,
+            "y_scale": 1.5,
+            "x_offset": 10,
+            "y_offset": 2,
+        })
+
+        # --- Header utama ---
+        worksheet_porto.merge_range(f"D2:{end_col_header_letter}2", "UNIVERSITAS WARMADEWA", header_medium)
+        worksheet_porto.merge_range(f"D3:{end_col_header_letter}3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+        worksheet_porto.merge_range(f"D4:{end_col_header_letter}4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet_porto.merge_range(f"D5:{end_col_header_letter}5", "PORTOFOLIO PENILAIAN", header_big)
+
+        kode_dokumen_porto = f'FTP-TKOM-PORTO-{rps_data["kode_matkul"]}-{tahun}'
+        worksheet_porto.merge_range(f"{startkode_col_header_letter}2:{end_col_letter}3", "Kode Dokumen", header_small)
+        worksheet_porto.merge_range(f"{startkode_col_header_letter}4:{end_col_letter}5", str(kode_dokumen_porto), header_small)
+
+        # --- Info MK ---
+        worksheet_porto.merge_range("B6:D6", "Mata Kuliah", title_cpl_format)
+        worksheet_porto.merge_range(f"E6:{end_col_letter}6", matkul, text_cpl_format)
+
+        worksheet_porto.merge_range("B7:D7", "Kode Mata Kuliah", title_cpl_format)
+        worksheet_porto.merge_range(f"E7:{end_col_letter}7", rps_data["kode_matkul"], text_cpl_format)
+
+        worksheet_porto.merge_range("B8:D8", "Kelas", title_cpl_format)
+        worksheet_porto.merge_range(f"E8:{end_col_letter}8", matkul_data["kelas"][0], text_cpl_format)
+
+        worksheet_porto.merge_range("B9:D9", "Semester", title_cpl_format)
+        worksheet_porto.merge_range(f"E9:{end_col_letter}9", rps_data["semester"][0], text_cpl_format)
+
+        worksheet_porto.merge_range("B10:D10", "Tahun Ajaran", title_cpl_format)
+        worksheet_porto.merge_range(f"E10:{end_col_letter}10", matkul_data["tahun_ajar"][0], text_cpl_format)
+
+        # Dosen pengampu
+        worksheet_porto.merge_range(f"B11:D16", "Dosen Pengampu", title_cpl_format)
+
+        # Isi dosen mulai dari baris 12
+        for i, dosen in enumerate(matkul_data["team_teaching"]):
+            worksheet_porto.merge_range(f"E{11+i}:{end_col_letter}{11+i}", dosen, text_cpl_format)
 
         workbook.close()
         output.seek(0)
