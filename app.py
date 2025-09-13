@@ -504,6 +504,28 @@ def download_rps():
             "bg_color": "#C0C0C0"  # abu-abu
         })
 
+        title_porto_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 12,
+            "border": 1,
+            "align": "left",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True,
+            "bg_color": "yellow"  # abu-abu
+        })
+
+        text_porto_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 8,
+            "border": 1,
+            "align": "left",
+            "valign": "vcenter",
+            "text_wrap": True,
+            "font_color": "black"
+        })
+
         title_korelasi_format = workbook.add_format({
             "font_name": "Tahoma",
             "font_size": 12,
@@ -1516,6 +1538,9 @@ def download_rps():
         end_col_index = 5 + total_cols - 1  
         end_col_letter = colnum_to_excel_name(end_col_index)
 
+        end_col_min_index = end_col_index - 1  
+        end_col_min_letter = colnum_to_excel_name(end_col_min_index)
+
         end_col_header = end_col_index - 6
         end_col_header_letter = colnum_to_excel_name(end_col_header)
 
@@ -1523,10 +1548,11 @@ def download_rps():
         startkode_col_header_letter = colnum_to_excel_name(startkode_col_header)
 
         # Atur ukuran kolom sama dengan rubrik
-        worksheet_porto.set_column("A:B", 2)        
+        worksheet_porto.set_column("A:A", 2)
+        worksheet_porto.set_column("B:B", 5)
         worksheet_porto.set_column("C:C", 15)       
         worksheet_porto.set_column("D:D", 30)
-        worksheet_porto.set_column(f"E:{end_col_letter}", 3)       
+        worksheet_porto.set_column(f"E:{end_col_letter}", 5)       
         worksheet_porto.set_row(1, 22)  # baris 2
         worksheet_porto.set_row(2, 22)  # baris 3
         worksheet_porto.set_row(3, 22)  # baris 4
@@ -1634,79 +1660,80 @@ def download_rps():
                     "cpl": "",
                     "bobot": ""
                 })
-        final_data.append({
-                    "kriteria_kode": "NILAI AKHIR",
-                    "subcpmk": "",
-                    "cpmk": "",
-                    "cpl": "",
-                    "bobot": ""
-                })
-        final_data.append({
-                    "kriteria_kode": "HURUF",
-                    "subcpmk": "",
-                    "cpmk": "",
-                    "cpl": "",
-                    "bobot": ""
-                })
         
         # --- Step 7: Tulis ke worksheet ---
-        row_start = 15
+        row_start = 14
         col_start = 4  # Kolom E = index 4 kalau 0-based
 
         # B15:D18
-        worksheet_porto.merge_range("B15:D15", "Threshold (%)", title_cpl_format)
-        worksheet_porto.merge_range("B16:D16", "Rerata CPL", title_cpl_format)
-        worksheet_porto.merge_range("B17:D17", "CPL-PRODI yang dibebankan pada MK", title_cpl_format)
-        worksheet_porto.merge_range("B18:D18", "Ketercapaian Tiap CPL (%)", title_cpl_format)
+        worksheet_porto.merge_range("B15:D15", "Threshold (%)", title_porto_format)
+        worksheet_porto.merge_range("B16:D16", "Rerata CPL", title_porto_format)
+        worksheet_porto.merge_range("B17:D17", "CPL-PRODI yang dibebankan pada MK", title_porto_format)
+        worksheet_porto.merge_range("B18:D18", "Ketercapaian Tiap CPL (%)", title_porto_format)
 
         # B19:D19
-        worksheet_porto.merge_range("B19:B24", "NO", title_cpl_format)
-        worksheet_porto.merge_range("C19:C24", "NIM", title_cpl_format)
-        worksheet_porto.merge_range("D19:D24", "NAMA MAHASISWA", title_cpl_format)
+        worksheet_porto.merge_range("B19:B23", "NO", text_porto_format)
+        worksheet_porto.merge_range("C19:C23", "NIM", text_porto_format)
+        worksheet_porto.merge_range("D19:D23", "NAMA MAHASISWA", text_porto_format)
+
+        worksheet_porto.merge_range(f"{end_col_min_letter}19:{end_col_min_letter}23", "NILAI AKHIR", text_porto_format)
+        worksheet_porto.merge_range(f"{end_col_letter}19:{end_col_letter}23", "HURUF", text_porto_format)
 
         # --- Header bagian final_data ---
-        current_col = col_start  # mulai dari kolom E
+        
+        current_col = col_start  # mulai dari kolom E        
 
         for item in final_data:
             cpl = item["cpl"]
             cpmk = item["cpmk"]
+            subcpmk = item["subcpmk"]
             kriteria = item["kriteria_kode"]
             bobot = item["bobot"]
 
             # --- Row 17: CPL ---
             if cpl and "NILAI PER CPL" not in kriteria:
-                worksheet_porto.merge_range(row_start+2, current_col, row_start+2, current_col+2, cpl, title_cpl_format)
+                worksheet_porto.merge_range(row_start+2, current_col, row_start+2, current_col+2, cpl, title_porto_format)
                 span = 3
             else:
-                worksheet_porto.write(row_start+2, current_col, cpl or "", title_cpl_format)
+                worksheet_porto.write(row_start+2, current_col, cpl or "", title_porto_format)
                 span = 1
 
             # --- Row 19: CPMK ---
             if cpmk and "NILAI PER CPL" not in kriteria:
-                worksheet_porto.merge_range(row_start+4, current_col, row_start+4, current_col+span-1, cpmk, text_cpl_format)
+                worksheet_porto.merge_range(row_start+4, current_col, row_start+4, current_col+span-1, cpmk, text_porto_format)
             else:
-                worksheet_porto.write(row_start+4, current_col, cpmk or "", text_cpl_format)
+                worksheet_porto.write(row_start+4, current_col, cpmk or "", text_porto_format)
 
-            # --- Row 20: Kriteria kode ---
+            # --- Row 20: SubCPMK ---
+            if subcpmk and "NILAI PER CPL" not in kriteria:
+                worksheet_porto.merge_range(row_start+5, current_col, row_start+5, current_col+span-1, subcpmk, text_porto_format)
+            else:
+                worksheet_porto.write(row_start+5, current_col, subcpmk or "", text_porto_format)
+
+            # --- Row 21: Kriteria kode ---
             if kriteria == "NILAI PER CPL":
-                worksheet_porto.write(row_start+5, current_col, kriteria, text_cpl_format)
+                worksheet_porto.write(row_start+6, current_col, kriteria, text_porto_format)
             else:
-                worksheet_porto.merge_range(row_start+5, current_col, row_start+5, current_col+span-1, kriteria, text_cpl_format)
+                if span == 3:
+                    worksheet_porto.merge_range(row_start+6, current_col, row_start+6, current_col+span-1, kriteria, text_porto_format)
+                else:
+                    worksheet_porto.write(row_start+6, current_col, kriteria, text_porto_format)
 
-            # --- Row 21: Subheader ---
+            # --- Row 22: skip ---
             if span == 3:
-                worksheet_porto.write(row_start+6, current_col, "NILAI", text_cpl_format)
-                worksheet_porto.write(row_start+6, current_col+1, "Tambahan", text_cpl_format)
-                worksheet_porto.write(row_start+6, current_col+2, "SUB BOBOT", text_cpl_format)
+                worksheet_porto.write(row_start+7, current_col, "NILAI", text_porto_format)
+                worksheet_porto.write(row_start+7, current_col+1, "Tambahan", text_porto_format)
+                worksheet_porto.write(row_start+7, current_col+2, "SUB BOBOT", text_porto_format)
             else:
-                worksheet_porto.write(row_start+6, current_col, "", text_cpl_format)
+                worksheet_porto.write(row_start+7, current_col, "", text_porto_format)
 
             # --- Row 23: Bobot ---
             if span == 3:
-                worksheet_porto.write(row_start+8, current_col+2, bobot, text_cpl_format)
+                worksheet_porto.write(row_start+8, current_col+2, bobot, text_porto_format)
             else:
-                worksheet_porto.write(row_start+8, current_col, bobot if bobot else "", text_cpl_format)
+                worksheet_porto.write(row_start+8, current_col, bobot if bobot else "", text_porto_format)
 
+            # Geser ke kolom berikutnya
             current_col += span
 
         workbook.close()
