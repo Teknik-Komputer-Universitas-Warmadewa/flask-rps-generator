@@ -397,16 +397,16 @@ def download_rps():
     try:
         # Log the attempt
         logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
-        
+
         cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
         logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
-        
+
         matkul_data = get_matkul_data(matkul, tahun)
         logger.info(f"Successfully retrieved matkul data")
-        
+
         rps_data = get_rps_data(matkul)
         logger.info(f"Successfully retrieved RPS data")
-        
+
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
         abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
@@ -1790,20 +1790,6 @@ def download_rps():
                     worksheet_porto.merge_range(row_start+6, current_col_2, row_start+6, current_col_2+span-1, kriteria, text_porto_format)
                 else:
                     worksheet_porto.write(row_start+6, current_col_2, kriteria, text_porto_format)
-
-            # # --- Row 22: skip ---
-            # if span == 3:
-            #     worksheet_porto.write(row_start+7, current_col_2, "NILAI", text_porto_format)
-            #     worksheet_porto.write(row_start+7, current_col_2+1, "Tambahan", text_porto_format)
-            #     worksheet_porto.write(row_start+7, current_col_2+2, "SUB BOBOT", text_porto_format)
-            # else:
-            #     worksheet_porto.write(row_start+7, current_col_2, "", text_porto_format)
-
-            # # --- Row 23: Bobot ---
-            # if span == 3:
-            #     worksheet_porto.write(row_start+8, current_col_2+2, bobot, text_porto_format)
-            # else:
-            #     worksheet_porto.write(row_start+8, current_col_2, bobot if bobot else "", text_porto_format)
 
             # --- Row 22 & 23: NILAI, Tambahan, SUB BOBOT ---
             if span == 3:

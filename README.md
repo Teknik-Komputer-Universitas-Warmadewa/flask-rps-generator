@@ -15,7 +15,12 @@ python -m venv env
 source ./env/Scripts/activate
 ```
 
-### 1. Create and Activate Virtual Environment
+### 2. Install Library
 ```bash
 pip install -r requirements.txt
+```
+
+### 3. Run App
+```bash
+python app.py
 ```
