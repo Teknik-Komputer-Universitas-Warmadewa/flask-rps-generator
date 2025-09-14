@@ -6,7 +6,7 @@ import xlsxwriter
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from collections import defaultdict
-from xlsxwriter.utility import xl_rowcol_to_cell
+from xlsxwriter.utility import xl_rowcol_to_cell, xl_col_to_name
 import re
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -506,9 +506,9 @@ def download_rps():
 
         title_porto_format = workbook.add_format({
             "font_name": "Tahoma",
-            "font_size": 12,
+            "font_size": 9,
             "border": 1,
-            "align": "left",
+            "align": "center",
             "valign": "vcenter",
             "bold": True,
             "font_color": "black",
@@ -516,11 +516,24 @@ def download_rps():
             "bg_color": "yellow"  # abu-abu
         })
 
+        title_threshold_format = workbook.add_format({
+            "font_name": "Tahoma",
+            "font_size": 9,
+            "border": 1,
+            "align": "center",
+            "valign": "vcenter",
+            "bold": True,
+            "font_color": "black",
+            "text_wrap": True,
+            "bg_color": "yellow",
+            "num_format": "0%" # abu-abu
+        })
+
         text_porto_format = workbook.add_format({
             "font_name": "Tahoma",
             "font_size": 8,
             "border": 1,
-            "align": "left",
+            "align": "center",
             "valign": "vcenter",
             "text_wrap": True,
             "font_color": "black"
@@ -959,7 +972,7 @@ def download_rps():
         worksheet.merge_range(f'{start_asm_cell}:{end_asm_cell}', "Bobot Asesmen", title_format)
 
         start_range_cell = xl_rowcol_to_cell(blueprint_start_row+1, end_col_green+2)
-        end_range_cell = xl_rowcol_to_cell(blueprint_start_row+7, 11)    
+        end_range_cell = xl_rowcol_to_cell(blueprint_start_row+(len(matkul_data["subcpmk_bobot"]) + 5), 11)    
 
         worksheet.merge_range(f'{start_range_cell}:{end_range_cell}', "Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sebagai berikut:\nRENTANGAN NILAI :\n85.00 - 100.00 : A (UNGGUL - LULUS)                \n75.00 - 84.99   : AB (BAIK SEKALI - LULUS)              \n70.00 - 74.99   : B (BAIK - LULUS)             \n60.00 - 69.99   : BC (CUKUP BAIK - TIDAK LULUS)\n55.00 - 59.99   : C (CUKUP - TIDAK LULUS)\n50.00 - 54.99   : CD (KURANG - TIDAK LULUS)\n44.00 - 49.99   : D (KURANG SEKALI - TIDAK LULUS)\n0.00 - 43.99     : E (GAGAL - TIDAK LULUS)", text_cpl_format)
 
@@ -1676,12 +1689,71 @@ def download_rps():
         worksheet_porto.merge_range("C19:C23", "NIM", text_porto_format)
         worksheet_porto.merge_range("D19:D23", "NAMA MAHASISWA", text_porto_format)
 
+        worksheet_porto.merge_range(f"{end_col_min_letter}15:{end_col_min_letter}18", "", title_porto_format)
+        worksheet_porto.merge_range(f"{end_col_letter}15:{end_col_letter}18", "", title_porto_format)
+
         worksheet_porto.merge_range(f"{end_col_min_letter}19:{end_col_min_letter}23", "NILAI AKHIR", text_porto_format)
         worksheet_porto.merge_range(f"{end_col_letter}19:{end_col_letter}23", "HURUF", text_porto_format)
 
-        # --- Header bagian final_data ---
-        
-        current_col = col_start  # mulai dari kolom E        
+        # --- Header bagian final_data ---        
+        current_col = col_start  # mulai dari kolom E   
+        current_col_2 = col_start 
+        # --- Row 15, 16, 18 ---  
+        # Hitung jumlah CPL
+        cpl_counts = {}
+        for item in final_data:
+            cpl = item["cpl"]
+            if cpl:
+                cpl_counts[cpl] = cpl_counts.get(cpl, 0) + 1
+
+        row_threshold = row_start + 1  # 15
+        row_rerata    = row_start + 2  # 16
+        row_ketercap  = row_start + 4  # 18
+
+        # Row 15: Threshold
+        # print(bobot_per_cpl)        
+        # print(matkul_data["cpl_bobot"])
+        # print(cpl_cpmk_sub["cpl_kode"])
+        # print(total_per_cpl)
+
+        # Row 15: Threshold diganti total_per_cpl
+        current_col = col_start
+        for cpl, count in cpl_counts.items():
+            span = count * 3 + 1
+            start_col = xl_col_to_name(current_col)
+            end_col   = xl_col_to_name(current_col + span - 1)
+
+            # cari index cpl di cpl_cpmk_sub["cpl_kode"]
+            idx = cpl_cpmk_sub["cpl_kode"].index(cpl)
+            nilai_threshold = total_per_cpl[idx]
+
+            worksheet_porto.merge_range(
+                f"{start_col}{row_threshold}:{end_col}{row_threshold}",
+                nilai_threshold,
+                title_threshold_format
+            )
+
+            current_col += span
+
+        # Row 16: Rerata
+        current_col = col_start
+        for cpl, count in cpl_counts.items():
+            span = count * 3 + 1
+            start_col = xl_col_to_name(current_col)
+            end_col   = xl_col_to_name(current_col + span - 1)
+            worksheet_porto.merge_range(f"{start_col}{row_rerata}:{end_col}{row_rerata}", "[rata-rata NILAI PER CPL]", title_porto_format)
+            current_col += span
+
+        # Row 18: Ketercapaian
+        current_col = col_start
+        for cpl, count in cpl_counts.items():
+            span = count * 3 + 1
+            start_col = xl_col_to_name(current_col)
+            end_col_2   = xl_col_to_name(current_col + span - 1)
+            end_col   = xl_col_to_name(current_col + span - 2)
+            worksheet_porto.merge_range(f"{start_col}{row_ketercap}:{end_col}{row_ketercap}", "[=Rerata CPL/Treshold/100]", title_porto_format)
+            worksheet_porto.write(f"{end_col_2}{row_ketercap}", "", title_porto_format)
+            current_col += span
 
         for item in final_data:
             cpl = item["cpl"]
@@ -1692,49 +1764,72 @@ def download_rps():
 
             # --- Row 17: CPL ---
             if cpl and "NILAI PER CPL" not in kriteria:
-                worksheet_porto.merge_range(row_start+2, current_col, row_start+2, current_col+2, cpl, title_porto_format)
+                worksheet_porto.merge_range(row_start+2, current_col_2, row_start+2, current_col_2+2, cpl, title_porto_format)
                 span = 3
             else:
-                worksheet_porto.write(row_start+2, current_col, cpl or "", title_porto_format)
+                worksheet_porto.write(row_start+2, current_col_2, cpl or "", title_porto_format)
                 span = 1
 
             # --- Row 19: CPMK ---
             if cpmk and "NILAI PER CPL" not in kriteria:
-                worksheet_porto.merge_range(row_start+4, current_col, row_start+4, current_col+span-1, cpmk, text_porto_format)
+                worksheet_porto.merge_range(row_start+4, current_col_2, row_start+4, current_col_2+span-1, cpmk, text_porto_format)
             else:
-                worksheet_porto.write(row_start+4, current_col, cpmk or "", text_porto_format)
+                worksheet_porto.write(row_start+4, current_col_2, cpmk or "", text_porto_format)
 
             # --- Row 20: SubCPMK ---
             if subcpmk and "NILAI PER CPL" not in kriteria:
-                worksheet_porto.merge_range(row_start+5, current_col, row_start+5, current_col+span-1, subcpmk, text_porto_format)
+                worksheet_porto.merge_range(row_start+5, current_col_2, row_start+5, current_col_2+span-1, subcpmk, text_porto_format)
             else:
-                worksheet_porto.write(row_start+5, current_col, subcpmk or "", text_porto_format)
+                worksheet_porto.write(row_start+5, current_col_2, subcpmk or "", text_porto_format)
 
             # --- Row 21: Kriteria kode ---
             if kriteria == "NILAI PER CPL":
-                worksheet_porto.write(row_start+6, current_col, kriteria, text_porto_format)
+                worksheet_porto.write(row_start+6, current_col_2, kriteria, text_porto_format)
             else:
                 if span == 3:
-                    worksheet_porto.merge_range(row_start+6, current_col, row_start+6, current_col+span-1, kriteria, text_porto_format)
+                    worksheet_porto.merge_range(row_start+6, current_col_2, row_start+6, current_col_2+span-1, kriteria, text_porto_format)
                 else:
-                    worksheet_porto.write(row_start+6, current_col, kriteria, text_porto_format)
+                    worksheet_porto.write(row_start+6, current_col_2, kriteria, text_porto_format)
 
-            # --- Row 22: skip ---
-            if span == 3:
-                worksheet_porto.write(row_start+7, current_col, "NILAI", text_porto_format)
-                worksheet_porto.write(row_start+7, current_col+1, "Tambahan", text_porto_format)
-                worksheet_porto.write(row_start+7, current_col+2, "SUB BOBOT", text_porto_format)
-            else:
-                worksheet_porto.write(row_start+7, current_col, "", text_porto_format)
+            # # --- Row 22: skip ---
+            # if span == 3:
+            #     worksheet_porto.write(row_start+7, current_col_2, "NILAI", text_porto_format)
+            #     worksheet_porto.write(row_start+7, current_col_2+1, "Tambahan", text_porto_format)
+            #     worksheet_porto.write(row_start+7, current_col_2+2, "SUB BOBOT", text_porto_format)
+            # else:
+            #     worksheet_porto.write(row_start+7, current_col_2, "", text_porto_format)
 
-            # --- Row 23: Bobot ---
+            # # --- Row 23: Bobot ---
+            # if span == 3:
+            #     worksheet_porto.write(row_start+8, current_col_2+2, bobot, text_porto_format)
+            # else:
+            #     worksheet_porto.write(row_start+8, current_col_2, bobot if bobot else "", text_porto_format)
+
+            # --- Row 22 & 23: NILAI, Tambahan, SUB BOBOT ---
             if span == 3:
-                worksheet_porto.write(row_start+8, current_col+2, bobot, text_porto_format)
+                # Merge NILAI ke bawah
+                worksheet_porto.merge_range(
+                    row_start+7, current_col_2, row_start+8, current_col_2,
+                    "NILAI", text_porto_format
+                )
+                # Merge Tambahan ke bawah
+                worksheet_porto.merge_range(
+                    row_start+7, current_col_2+1, row_start+8, current_col_2+1,
+                    "Tambahan", text_porto_format
+                )
+                # SUB BOBOT hanya di row 22
+                worksheet_porto.write(row_start+7, current_col_2+2, "SUB BOBOT", text_porto_format)
+
+                # Bobot tetap di row 23 kolom SUB BOBOT
+                worksheet_porto.write(row_start+8, current_col_2+2, bobot, text_porto_format)
             else:
-                worksheet_porto.write(row_start+8, current_col, bobot if bobot else "", text_porto_format)
+                worksheet_porto.write(row_start+7, current_col_2, "", text_porto_format)
+                worksheet_porto.write(row_start+8, current_col_2, bobot if bobot else "", text_porto_format)
 
             # Geser ke kolom berikutnya
-            current_col += span
+            current_col_2 += span
+
+            
 
         workbook.close()
         output.seek(0)
