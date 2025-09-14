@@ -387,41 +387,41 @@ def index():
 
 @app.route("/download-rps", methods=["POST"])
 def download_rps():
-        matkul = request.form.get("nama_matkul")
-        tahun = request.form.get("tahun") or str(datetime.now().year)
+    matkul = request.form.get("nama_matkul")
+    tahun = request.form.get("tahun") or str(datetime.now().year)
 
-        # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-        # matkul_data = get_matkul_data(matkul,tahun)
-        # rps_data = get_rps_data(matkul)
+    # cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+    # matkul_data = get_matkul_data(matkul,tahun)
+    # rps_data = get_rps_data(matkul)
 
-        try:
-            # Log the attempt
-            logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
-            
-            cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
-            logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
-            
-            matkul_data = get_matkul_data(matkul, tahun)
-            logger.info(f"Successfully retrieved matkul data")
-            
-            rps_data = get_rps_data(matkul)
-            logger.info(f"Successfully retrieved RPS data")
-            
-        except FileNotFoundError as e:
-            logger.error(f"File not found: {e}")
-            abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
-        except ValueError as e:
-            logger.error(f"Data error: {e}")
-            abort(400, description=str(e))
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
+    try:
+        # Log the attempt
+        logger.info(f"Attempting to generate RPS for {matkul} ({tahun})")
+        
+        cpl_cpmk_sub = get_cpl_cpmk_sub_list(matkul)
+        logger.info(f"Successfully retrieved CPL/CPMK/SubCPMK data")
+        
+        matkul_data = get_matkul_data(matkul, tahun)
+        logger.info(f"Successfully retrieved matkul data")
+        
+        rps_data = get_rps_data(matkul)
+        logger.info(f"Successfully retrieved RPS data")
+        
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        abort(404, description=f"File data untuk mata kuliah '{matkul}' tahun {tahun} tidak ditemukan. Pastikan file sudah diupload.")
+    except ValueError as e:
+        logger.error(f"Data error: {e}")
+        abort(400, description=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        abort(500, description=f"Terjadi kesalahan sistem: {str(e)}")
 
-        if not matkul:
-            abort(400, description="Nama mata kuliah wajib diisi")
+    if not matkul:
+        abort(400, description="Nama mata kuliah wajib diisi")
 
     
-    # try:
+    try:
         output = io.BytesIO()
         workbook = xlsxwriter.Workbook(output, {"in_memory": True})
         worksheet = workbook.add_worksheet("RPS")
@@ -1840,9 +1840,10 @@ def download_rps():
             download_name=f"RPS_RPM_RUB_KTR_PORTO_{matkul}_{tahun}.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    # except Exception as e:
-    #     logger.error(f"Error generating Excel file: {e}")
-    #     abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"Error generating Excel file: {e}")
+        abort(500, description=f"Terjadi kesalahan saat membuat file Excel: {str(e)}")
 
 @app.route("/download-template")
 def download_template():
