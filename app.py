@@ -990,15 +990,22 @@ def download_rps():
                 worksheet.write(f'B{blueprint_start_row+4+i}', cpl_cpmk_sub["subcpmk_kode"][i], text_format)
 
         kriteria_per_subcpmk = []
+        kriteria_per_subcpmk_v2 = []
         rubrik_per_subcpmk = []
 
         for kode in cpl_cpmk_sub["subcpmk_kode"]:
             # cari semua kriteria untuk subcpmk ini
             related_kriteria = [
-                matkul_data["kriteria"][i]
+                matkul_data["kriteria_numbered"][i]
                 for i, wk in enumerate(matkul_data["subcpmk_weekly"])
                 if wk == kode
             ]
+
+            # related_bobot = [
+            #     float(matkul_data["bobot"][i])
+            #     for i, wk in enumerate(matkul_data["subcpmk_weekly"])
+            #     if wk == kode
+            # ]
 
             # cek apakah ada "Tugas" 
             if any("Tugas" in k for k in related_kriteria): 
@@ -1008,14 +1015,21 @@ def download_rps():
             
             # kumpulkan semua teks di dalam [ ... ]
             rubrik_items = []
+            kriteria_items = []
             if related_kriteria:
-                for k in related_kriteria:
+                for i,k in enumerate(related_kriteria):
                     matches = re.findall(r"\[(.*?)\]", k)
+                    matches_kriteria = k.split(":", 1)[0].strip()
+                    kriteria_items.append(matches_kriteria)
                     rubrik_items.extend(matches)
             rubrik_per_subcpmk.append(", ".join(rubrik_items) if rubrik_items else "")
+            kriteria_per_subcpmk_v2.append(", ".join(kriteria_items) if rubrik_items else "")
+
+        # for i in range(len(cpl_cpmk_sub["subcpmk_kode"])): 
+        #     worksheet.write(f'C{blueprint_start_row+4+i}', kriteria_per_subcpmk[i], text_format)
 
         for i in range(len(cpl_cpmk_sub["subcpmk_kode"])): 
-            worksheet.write(f'C{blueprint_start_row+4+i}', kriteria_per_subcpmk[i], text_format)
+            worksheet.write(f'C{blueprint_start_row+4+i}', kriteria_per_subcpmk_v2[i], text_format)
 
         for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
             excel_row = blueprint_start_row + 3 + i               # Excel row number (1-based)
@@ -1277,7 +1291,7 @@ def download_rps():
 
             # Atur ukuran kolom
             worksheet_rub.set_column("A:A", 5)        # Kolom A kecil
-            worksheet_rub.set_column("B:I", 25)       # Kolom B - L agak besar (2x normal)
+            worksheet_rub.set_column("B:M", 18)       # Kolom B - L agak besar (2x normal)
             worksheet_rub.set_row(1, 22)  # baris 2
             worksheet_rub.set_row(2, 22)  # baris 3
             worksheet_rub.set_row(3, 22)  # baris 4
@@ -1291,26 +1305,26 @@ def download_rps():
             })
 
             # --- Header utama ---            
-            worksheet_rub.merge_range("C2:G2", "UNIVERSITAS WARMADEWA", header_medium)
-            worksheet_rub.merge_range("C3:G3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-            worksheet_rub.merge_range("C4:G4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
-            worksheet_rub.merge_range("C5:G5", header_title, header_small)
+            worksheet_rub.merge_range("C2:K2", "UNIVERSITAS WARMADEWA", header_medium)
+            worksheet_rub.merge_range("C3:K3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
+            worksheet_rub.merge_range("C4:K4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+            worksheet_rub.merge_range("C5:K5", header_title, header_small)
 
             kode_dokumen_rub = f'FTP-TKOM-RUB-{rps_data["kode_matkul"]}-{tahun}'
-            worksheet_rub.merge_range("H2:I3", "Kode Dokumen", header_small)
-            worksheet_rub.merge_range("H4:I5", str(kode_dokumen_rub), header_small)
+            worksheet_rub.merge_range("L2:M3", "Kode Dokumen", header_small)
+            worksheet_rub.merge_range("L4:M5", str(kode_dokumen_rub), header_small)
 
             # # --- Info MK ---
             worksheet_rub.merge_range("B6:C6", "MATA KULIAH", title_cpl_format)
-            worksheet_rub.merge_range("D6:I6", matkul, text_cpl_format)
+            worksheet_rub.merge_range("D6:M6", matkul, text_cpl_format)
 
             worksheet_rub.merge_range("B7:C7", "KODE", title_cpl_format)
-            worksheet_rub.merge_range("D7:I7", rps_data["kode_matkul"], text_cpl_format)
+            worksheet_rub.merge_range("D7:M7", rps_data["kode_matkul"], text_cpl_format)
 
             worksheet_rub.merge_range("B8:C11", "DOSEN PENGAMPU", title_cpl_format)
             # Buat 4 baris kosong dulu
             for i in range(4):
-                worksheet_rub.merge_range(f"D{8+i}:I{8+i}", "", text_cpl_format)
+                worksheet_rub.merge_range(f"D{8+i}:M{8+i}", "", text_cpl_format)
 
             # Isi nama dosen sesuai jumlah
             if len(matkul_data["team_teaching"]) < 5:
@@ -1320,10 +1334,10 @@ def download_rps():
                 worksheet_rub.write("D8", matkul_data["team_teaching"][0], text_cpl_format)
 
             worksheet_rub.merge_range("B12:C12", "SEMESTER", title_cpl_format)
-            worksheet_rub.merge_range("D12:I12", rps_data["semester"], text_cpl_format)
+            worksheet_rub.merge_range("D12:M12", rps_data["semester"], text_cpl_format)
 
             worksheet_rub.merge_range("B13:C13", "SKS", title_cpl_format)
-            worksheet_rub.merge_range("D13:I13", rps_data["bobot_sks"], text_cpl_format)
+            worksheet_rub.merge_range("D13:M13", rps_data["bobot_sks"], text_cpl_format)
 
             # --- Cari semua kriteria yang ada kode rubrik (misal "SP1") ---
             related_kriteria = [
@@ -1334,21 +1348,21 @@ def download_rps():
             worksheet_rub.set_row(13, 15*len(related_kriteria))  # baris 14
 
             worksheet_rub.merge_range("B14:C14", "Tugas", title_cpl_format)
-            worksheet_rub.merge_range("D14:I14", tugas_str, text_cpl_format)
+            worksheet_rub.merge_range("D14:M14", tugas_str, text_cpl_format)
 
             worksheet_rub.merge_range("B15:C15", "Tipe", title_cpl_format)
-            worksheet_rub.merge_range("D15:I15", type_rubrik, text_cpl_format)
+            worksheet_rub.merge_range("D15:M15", type_rubrik, text_cpl_format)
 
             worksheet_rub.merge_range("B16:C16", "Sifat", title_cpl_format)
-            worksheet_rub.merge_range("D16:I16", "Individu", text_cpl_format)
+            worksheet_rub.merge_range("D16:M16", "Individu", text_cpl_format)
 
             # --- Capaian & deskripsi ---
-            worksheet_rub.merge_range("B17:C17", "Capaian", title_cpl_format)
+            worksheet_rub.merge_range(f"B17:C{17+len(subcpmk_rub_data)-1}", "Capaian", title_cpl_format)
 
             row = 16
             # Buat 4 baris kosong dulu
             for i in range(len(subcpmk_rub_data)):
-                worksheet_rub.merge_range(f"E{17+i}:I{17+i}", "", text_cpl_format)
+                worksheet_rub.merge_range(f"E{17+i}:M{17+i}", "", text_cpl_format)
 
             for idx, (subcpmk, cpl) in enumerate(zip(subcpmk_rub_data, cpl_rub_data)):
                 try:
