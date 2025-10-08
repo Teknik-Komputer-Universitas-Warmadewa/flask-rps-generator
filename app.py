@@ -894,7 +894,7 @@ def download_rps():
         weekly_subcpmk_desc = []
 
         for i in range(len_mingguan):
-            worksheet.write(f'B{mingguan_body_start_row+i}', int(float(matkul_data["minggu_ke"][i])), text_cpl_format)
+            worksheet.write(f'B{mingguan_body_start_row+i}', str(matkul_data["minggu_ke"][i]), text_cpl_format)
 
             # === cari deskripsi subcpmk ===
             subcpmk_kode = matkul_data["subcpmk_weekly"][i]
@@ -1132,7 +1132,7 @@ def download_rps():
             worksheet_rpm.merge_range("B12:F12", "BENTUK TUGAS", title_cpl_format)
             worksheet_rpm.merge_range("B13:F13", "Penugasan Individu", text_cpl_format)
             worksheet_rpm.merge_range("G12:J12", "WAKTU PENGERJAAN TUGAS", title_cpl_format)
-            worksheet_rpm.merge_range("G13:J13", f'Minggu ke-{int(float(minggu_rpm))}', text_cpl_format)
+            worksheet_rpm.merge_range("G13:J13", f'Minggu ke-{str(minggu_rpm)}', text_cpl_format)
 
             worksheet_rpm.merge_range("B14:J14", "JUDUL TUGAS", title_cpl_format)
             worksheet_rpm.merge_range("B15:J15", judul_kriteria, text_cpl_format)
@@ -1158,7 +1158,7 @@ def download_rps():
             worksheet_rpm.merge_range("B29:J29", "Kriteria Penilaian: Terlampir", text_cpl_format)
 
             worksheet_rpm.merge_range("B30:J30", "JADWAL PELAKSANAAN", title_cpl_format)
-            worksheet_rpm.merge_range("B31:J31", f'Minggu ke-{int(float(minggu_rpm))}', text_cpl_format)
+            worksheet_rpm.merge_range("B31:J31", f'Minggu ke-{str(minggu_rpm)}', text_cpl_format)
 
             worksheet_rpm.merge_range("B32:J32", "LAIN-LAIN", title_cpl_format)
             worksheet_rpm.merge_range("B33:J33", "-", text_cpl_format)
