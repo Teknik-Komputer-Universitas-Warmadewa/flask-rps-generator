@@ -38,6 +38,27 @@ MATKUL_START_ROW = 3
 MATKUL_END_ROW = 69
 MATKUL_COLUMN = "D"
 
+# ============================================================
+# KONFIGURASI INSTITUSI
+# Edit bagian ini untuk menyesuaikan dengan institusi Anda.
+# Semua teks di bawah ini akan otomatis teraplikasi ke seluruh
+# sheet: RPS, RPM, Rubrik, Kontrak, dan Portofolio.
+# ============================================================
+INSTITUSI = {
+    "universitas":   INSTITUSI["universitas"],
+    "fakultas":      INSTITUSI["fakultas"],
+    "prodi":         INSTITUSI["prodi"],
+    "kode_prodi":    "TKOM",
+    "kode_fakultas": "FTP",
+    "koordinator_mk": INSTITUSI["koordinator_mk"],
+    "kaprodi":       INSTITUSI["kaprodi"],
+    "kaprodi_nik":   INSTITUSI["kaprodi_nik"],
+    "logo_path":     INSTITUSI["logo_path"],
+}
+
+def kode_dok(tipe, kode_matkul, tahun):
+    return f'{INSTITUSI["kode_fakultas"]}-{INSTITUSI["kode_prodi"]}-{tipe}-{kode_matkul}-{tahun}'
+
 
 def find_sheet_for_matkul(wb, nama_matkul):
     """
@@ -74,6 +95,42 @@ def find_sheet_for_matkul(wb, nama_matkul):
             return s
 
     return None
+
+
+def get_institusi(matkul_data, key):
+    """
+    Ambil data institusi dari Excel terlebih dahulu.
+    Fallback ke INSTITUSI di app.py jika kolom Excel kosong.
+    key: universitas, fakultas, prodi, kode_prodi, kode_fakultas,
+         koordinator_mk, kaprodi, kaprodi_nik
+    """
+    excel_map = {
+        "universitas":    matkul_data.get("universitas_excel"),
+        "fakultas":       matkul_data.get("fakultas_excel"),
+        "prodi":          matkul_data.get("prodi_excel"),
+        "kode_prodi":     matkul_data.get("kode_prodi_excel"),
+        "kode_fakultas":  matkul_data.get("kode_fakultas_excel"),
+        "koordinator_mk": matkul_data.get("koordinator_mk_excel"),
+        "kaprodi":        matkul_data.get("kaprodi_excel"),
+        "kaprodi_nik":    matkul_data.get("kaprodi_nik_excel"),
+    }
+    return excel_map.get(key) or INSTITUSI.get(key, "")
+
+def get_dosen_pengembang(matkul_data):
+    """Ambil Dosen Pengembang dari Excel (col AI) atau fallback ke team_teaching[0]"""
+    return matkul_data.get("dosen_pengembang") or (matkul_data["team_teaching"][0] if matkul_data["team_teaching"] else "")
+
+def get_koordinator_mk(matkul_data):
+    return get_institusi(matkul_data, "koordinator_mk")
+
+def get_kaprodi(matkul_data):
+    return get_institusi(matkul_data, "kaprodi")
+
+def kode_dok_mk(tipe, kode_matkul, tahun, matkul_data):
+    """Buat kode dokumen menggunakan data institusi dari Excel atau fallback"""
+    kf = get_institusi(matkul_data, "kode_fakultas")
+    kp = get_institusi(matkul_data, "kode_prodi")
+    return f"{kf}-{kp}-{tipe}-{kode_matkul}-{tahun}"
 
 
 def get_matkul_list():
@@ -188,13 +245,27 @@ def get_matkul_data(nama_matkul, tahun):
     materi_non_uts_uas, materi_non_uts_uas_numbered, materi_weekly_numbered = [], [], []
     kelas, jml_mhs, hari, tempat, tahun_ajar = [], [], [], [], []
     cpl_bobot, cpmk_bobot, subcpmk_bobot, total_bobot = [], [], [], []
+    # Kolom template 2026: AI-AQ = data dosen & institusi
+    dosen_pengembang_list, koordinator_mk_list, kaprodi_list = [], [], []
+    kaprodi_nik_list = []
+    universitas_list, fakultas_list, prodi_list = [], [], []
+    kode_prodi_list, kode_fakultas_list = [], []
 
     for row in sheet.iter_rows(min_row=2, values_only=True):
         col_a, col_b, col_c, col_d, col_e = row[0:5]
         col_g, col_h, col_i, col_j, col_k, col_l, col_m = row[6:13]
         col_o, col_p, col_q = row[14:17]
-        col_y = row[24]
+        col_y = row[24]  # kolom Y = Total
         col_aa, col_ab, col_ac, col_ad, col_ae = row[26:31]
+        col_ai = row[34] if len(row) > 34 else None  # Dosen Pengembang RPS
+        col_aj = row[35] if len(row) > 35 else None  # Koordinator Mata Kuliah
+        col_ak = row[36] if len(row) > 36 else None  # Ketua Program Studi
+        col_al = row[37] if len(row) > 37 else None  # NIK Kaprodi
+        col_am = row[38] if len(row) > 38 else None  # Universitas
+        col_an = row[39] if len(row) > 39 else None  # Fakultas
+        col_ao = row[40] if len(row) > 40 else None  # Program Studi
+        col_ap = row[41] if len(row) > 41 else None  # Kode Prodi
+        col_aq = row[42] if len(row) > 42 else None  # Kode Fakultas
 
         if col_a: pustaka_utama.append(str(col_a))
         if col_b: pustaka_pendukung.append(str(col_b))
@@ -236,6 +307,15 @@ def get_matkul_data(nama_matkul, tahun):
         if col_ac: hari.append(str(col_ac))
         if col_ad: tempat.append(str(col_ad))
         if col_ae: tahun_ajar.append(str(col_ae))
+        if col_ai: dosen_pengembang_list.append(str(col_ai))
+        if col_aj: koordinator_mk_list.append(str(col_aj))
+        if col_ak: kaprodi_list.append(str(col_ak))
+        if col_al: kaprodi_nik_list.append(str(col_al))
+        if col_am: universitas_list.append(str(col_am))
+        if col_an: fakultas_list.append(str(col_an))
+        if col_ao: prodi_list.append(str(col_ao))
+        if col_ap: kode_prodi_list.append(str(col_ap))
+        if col_aq: kode_fakultas_list.append(str(col_aq))
 
     wb.close()
 
@@ -371,6 +451,16 @@ def get_matkul_data(nama_matkul, tahun):
         "rubrik_A2_cpl": rubrik_A2_cpl,
         "rubrik_A3_subcpmk": rubrik_A3_subcpmk,
         "rubrik_A3_cpl": rubrik_A3_cpl,
+        # Dari kolom AI-AQ template 2026
+        "dosen_pengembang": dosen_pengembang_list[0] if dosen_pengembang_list else None,
+        "koordinator_mk_excel": koordinator_mk_list[0] if koordinator_mk_list else None,
+        "kaprodi_excel": kaprodi_list[0] if kaprodi_list else None,
+        "kaprodi_nik_excel": kaprodi_nik_list[0] if kaprodi_nik_list else None,
+        "universitas_excel": universitas_list[0] if universitas_list else None,
+        "fakultas_excel": fakultas_list[0] if fakultas_list else None,
+        "prodi_excel": prodi_list[0] if prodi_list else None,
+        "kode_prodi_excel": kode_prodi_list[0] if kode_prodi_list else None,
+        "kode_fakultas_excel": kode_fakultas_list[0] if kode_fakultas_list else None,
     }
 
 @app.route("/", methods=["GET", "POST"])
@@ -622,19 +712,19 @@ def download_rps():
         worksheet.set_row(3, 22)
         worksheet.set_row(4, 26)
         worksheet.merge_range("B2:B5", "", header_medium)
-        worksheet.insert_image("B2", "data/logo.png", {
+        worksheet.insert_image("B2", INSTITUSI["logo_path"], {
             "x_scale": 1.5,
             "y_scale": 1.5,
             "x_offset": 10,
             "y_offset": 2,
         })
         
-        worksheet.merge_range("C2:J2", "UNIVERSITAS WARMADEWA", header_medium)
-        worksheet.merge_range("C3:J3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-        worksheet.merge_range("C4:J4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet.merge_range("C2:J2", get_institusi(matkul_data, "universitas"), header_medium)
+        worksheet.merge_range("C3:J3", get_institusi(matkul_data, "fakultas"), header_medium)
+        worksheet.merge_range("C4:J4", get_institusi(matkul_data, "prodi"), header_medium)
         worksheet.merge_range("C5:J5", "RENCANA PEMBELAJARAN SEMESTER", header_big)
 
-        kode_dokumen_rps = f'FTP-TKOM-RPS-{rps_data["kode_matkul"]}-{tahun}'
+        kode_dokumen_rps = kode_dok_mk("RPS", rps_data["kode_matkul"], tahun, matkul_data)
         worksheet.merge_range("K2:L3", "Kode Dokumen", header_small)
         worksheet.merge_range("K4:L5", str(kode_dokumen_rps), header_small)
 
@@ -661,9 +751,9 @@ def download_rps():
         worksheet.set_row(10, 110)
 
         worksheet.merge_range("B11:C11", "OTORISASI / PENGESAHAN", text_otorisasi_format)
-        worksheet.merge_range("D11:F11", matkul_data["team_teaching"][0], text_otorisasi_format)    
-        worksheet.merge_range("G11:I11", "I Made Adi Bhaskara, S.Kom., M.T.", text_otorisasi_format)    
-        worksheet.merge_range("J11:L11", "Ir. I Made Surya Kumara, S.T., M.Sc.", text_otorisasi_format)
+        worksheet.merge_range("D11:F11", get_dosen_pengembang(matkul_data), text_otorisasi_format)    
+        worksheet.merge_range("G11:I11", get_koordinator_mk(matkul_data), text_otorisasi_format)    
+        worksheet.merge_range("J11:L11", get_kaprodi(matkul_data), text_otorisasi_format)
 
         unique_cpmk = {}
         unique_cpl = {}
@@ -1009,19 +1099,19 @@ def download_rps():
             worksheet_rpm.set_row(3, 22)
             worksheet_rpm.set_row(4, 26)
             worksheet_rpm.merge_range("B2:B5", "", header_medium)
-            worksheet_rpm.insert_image("B2", "data/logo.png", {
+            worksheet_rpm.insert_image("B2", INSTITUSI["logo_path"], {
                 "x_scale": 1.5,
                 "y_scale": 1.5,
                 "x_offset": 10,
                 "y_offset": 2,
             })
             
-            worksheet_rpm.merge_range("C2:H2", "UNIVERSITAS WARMADEWA", header_medium)
-            worksheet_rpm.merge_range("C3:H3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-            worksheet_rpm.merge_range("C4:H4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+            worksheet_rpm.merge_range("C2:H2", get_institusi(matkul_data, "universitas"), header_medium)
+            worksheet_rpm.merge_range("C3:H3", get_institusi(matkul_data, "fakultas"), header_medium)
+            worksheet_rpm.merge_range("C4:H4", get_institusi(matkul_data, "prodi"), header_medium)
             worksheet_rpm.merge_range("C5:H5", "RENCANA PENUGASAN MAHASISWA", header_big)
 
-            kode_dokumen_rpm = f'FTP-TKOM-RPM-{rps_data["kode_matkul"]}-{tahun}'
+            kode_dokumen_rpm = kode_dok_mk("RPM", rps_data["kode_matkul"], tahun, matkul_data)
             worksheet_rpm.merge_range("I2:J3", "Kode Dokumen", header_small)
             worksheet_rpm.merge_range("I4:J5", str(kode_dokumen_rpm), header_small)
 
@@ -1206,19 +1296,19 @@ def download_rps():
             worksheet_rub.set_row(3, 22)
             worksheet_rub.set_row(4, 22)
             worksheet_rub.merge_range("B2:B5", "", header_medium)
-            worksheet_rub.insert_image("B2", "data/logo.png", {
+            worksheet_rub.insert_image("B2", INSTITUSI["logo_path"], {
                 "x_scale": 1.5,
                 "y_scale": 1.5,
                 "x_offset": 10,
                 "y_offset": 2,
             })
 
-            worksheet_rub.merge_range("C2:G2", "UNIVERSITAS WARMADEWA", header_medium)
-            worksheet_rub.merge_range("C3:G3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-            worksheet_rub.merge_range("C4:G4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+            worksheet_rub.merge_range("C2:G2", get_institusi(matkul_data, "universitas"), header_medium)
+            worksheet_rub.merge_range("C3:G3", get_institusi(matkul_data, "fakultas"), header_medium)
+            worksheet_rub.merge_range("C4:G4", get_institusi(matkul_data, "prodi"), header_medium)
             worksheet_rub.merge_range("C5:G5", header_title, header_small)
 
-            kode_dokumen_rub = f'FTP-TKOM-RUB-{rps_data["kode_matkul"]}-{tahun}'
+            kode_dokumen_rub = kode_dok_mk("RUB", rps_data["kode_matkul"], tahun, matkul_data)
             worksheet_rub.merge_range("H2:I3", "Kode Dokumen", header_small)
             worksheet_rub.merge_range("H4:I5", str(kode_dokumen_rub), header_small)
 
@@ -1287,19 +1377,19 @@ def download_rps():
         worksheet_kontrak.set_row(4, 26)
         worksheet_kontrak.merge_range("B2:B5", "", header_medium)
 
-        worksheet_kontrak.insert_image("B2", "data/logo.png", {
+        worksheet_kontrak.insert_image("B2", INSTITUSI["logo_path"], {
             "x_scale": 1.5,
             "y_scale": 1.5,
             "x_offset": 10,
             "y_offset": 2,
         })
 
-        worksheet_kontrak.merge_range("C2:J2", "UNIVERSITAS WARMADEWA", header_medium)
-        worksheet_kontrak.merge_range("C3:J3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-        worksheet_kontrak.merge_range("C4:J4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet_kontrak.merge_range("C2:J2", get_institusi(matkul_data, "universitas"), header_medium)
+        worksheet_kontrak.merge_range("C3:J3", get_institusi(matkul_data, "fakultas"), header_medium)
+        worksheet_kontrak.merge_range("C4:J4", get_institusi(matkul_data, "prodi"), header_medium)
         worksheet_kontrak.merge_range("C5:J5", "KONTRAK PERKULIAHAN", header_big)
 
-        kode_dokumen_kontrak = f'FTP-TKOM-KTR-{rps_data["kode_matkul"]}-{tahun}'
+        kode_dokumen_kontrak = kode_dok_mk("KTR", rps_data["kode_matkul"], tahun, matkul_data)
         worksheet_kontrak.merge_range("K2:L3", "Kode Dokumen", header_small)
         worksheet_kontrak.merge_range("K4:L5", str(kode_dokumen_kontrak), header_small)
 
@@ -1423,16 +1513,16 @@ def download_rps():
         worksheet_kontrak.merge_range("B36:D36", "NIM.", text_ttd_format)
 
         worksheet_kontrak.merge_range("J29:L29", "Koordinator MK", text_ttd_format)
-        worksheet_kontrak.merge_range("J35:L35", matkul_data["team_teaching"][0], text_ttd_format)
+        worksheet_kontrak.merge_range("J35:L35", get_dosen_pengembang(matkul_data), text_ttd_format)
         worksheet_kontrak.merge_range("J36:L36", matkul_data["nik"][0], text_ttd_format)
 
         worksheet_kontrak.merge_range("F40:H40", "Mengetahui", text_ttd_format)
-        worksheet_kontrak.merge_range("F41:H41", "Ketua Program Studi Teknik Komputer", text_ttd_format)
+        worksheet_kontrak.merge_range("F41:H41", f'Ketua {get_institusi(matkul_data, "prodi")}', text_ttd_format)
         worksheet_kontrak.merge_range("F42:H42", "Fakultas Teknik dan Perencanaan", text_ttd_format)
-        worksheet_kontrak.merge_range("F43:H43", "Universitas Warmadewa", text_ttd_format)
+        worksheet_kontrak.merge_range("F43:H43", get_institusi(matkul_data, "universitas").title(), text_ttd_format)
 
-        worksheet_kontrak.merge_range("F48:H48", "I Made Surya Kumara, S.T., M.Sc.", text_ttd_format)
-        worksheet_kontrak.merge_range("F49:H49", "NIK. 230700584", text_ttd_format)
+        worksheet_kontrak.merge_range("F48:H48", get_kaprodi(matkul_data), text_ttd_format)
+        worksheet_kontrak.merge_range("F49:H49", get_institusi(matkul_data, "kaprodi_nik"), text_ttd_format)
 
         ############################## PORTO ############################################
         sheet_title_porto = f"LEMBAR KERJA - PORTO"
@@ -1466,19 +1556,19 @@ def download_rps():
         worksheet_porto.set_row(4, 28)
 
         worksheet_porto.merge_range("B2:C5", "", header_medium)
-        worksheet_porto.insert_image("B2", "data/logo.png", {
+        worksheet_porto.insert_image("B2", INSTITUSI["logo_path"], {
             "x_scale": 1.5,
             "y_scale": 1.5,
             "x_offset": 10,
             "y_offset": 2,
         })
 
-        worksheet_porto.merge_range(f"D2:{end_col_header_letter}2", "UNIVERSITAS WARMADEWA", header_medium)
-        worksheet_porto.merge_range(f"D3:{end_col_header_letter}3", "FAKULTAS TEKNIK DAN PERENCANAAN", header_medium)
-        worksheet_porto.merge_range(f"D4:{end_col_header_letter}4", "PROGRAM STUDI TEKNIK KOMPUTER", header_medium)
+        worksheet_porto.merge_range(f"D2:{end_col_header_letter}2", get_institusi(matkul_data, "universitas"), header_medium)
+        worksheet_porto.merge_range(f"D3:{end_col_header_letter}3", get_institusi(matkul_data, "fakultas"), header_medium)
+        worksheet_porto.merge_range(f"D4:{end_col_header_letter}4", get_institusi(matkul_data, "prodi"), header_medium)
         worksheet_porto.merge_range(f"D5:{end_col_header_letter}5", "PORTOFOLIO PENILAIAN", header_big)
 
-        kode_dokumen_porto = f'FTP-TKOM-PORTO-{rps_data["kode_matkul"]}-{tahun}'
+        kode_dokumen_porto = kode_dok_mk("PORTO", rps_data["kode_matkul"], tahun, matkul_data)
         worksheet_porto.merge_range(f"{startkode_col_header_letter}2:{end_col_letter}3", "Kode Dokumen", header_small)
         worksheet_porto.merge_range(f"{startkode_col_header_letter}4:{end_col_letter}5", str(kode_dokumen_porto), header_small)
 
