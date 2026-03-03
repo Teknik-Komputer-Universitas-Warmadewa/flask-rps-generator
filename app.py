@@ -202,17 +202,28 @@ def get_matkul_data(nama_matkul, tahun):
         if col_d: nik.append(str(col_d))
         if col_e: matkul_syarat.append(str(col_e))
 
+        # FIX: Semua kolom mingguan hanya diappend jika col_l (bobot) ada.
+        # Ini mencegah desync antara array minggu_ke, kriteria, bobot, dll.
+        if col_l is None:
+            # Tetap catat data referensi (cpl/cpmk/subcpmk bobot & kelas) jika ada
+            if col_o: cpl_bobot.append(str(col_o))
+            if col_p: cpmk_bobot.append(str(col_p))
+            if col_q: subcpmk_bobot.append(str(col_q))
+            if col_y: total_bobot.append(str(col_y))
+            if col_aa: kelas.append(str(col_aa))
+            if col_ab: jml_mhs.append(str(col_ab))
+            if col_ac: hari.append(str(col_ac))
+            if col_ad: tempat.append(str(col_ad))
+            if col_ae: tahun_ajar.append(str(col_ae))
+            continue
+
+        # Append semua array mingguan bersama-sama agar selalu sinkron
         if col_g: minggu_ke.append(str(col_g))
         if col_h: subcpmk_weekly.append(str(col_h))
         if col_i: indikator.append(str(col_i))
         if col_j: kriteria.append(str(col_j))
         if col_k: materi.append(str(col_k))
-        if col_l is None:
-            continue
-        elif str(col_l).strip() == "-":
-            bobot.append("0")
-        else:
-            bobot.append(str(col_l))
+        bobot.append("0" if str(col_l).strip() == "-" else str(col_l))
         if col_m: pustaka_weekly.append(str(col_m))
 
         if col_o: cpl_bobot.append(str(col_o))
@@ -749,8 +760,13 @@ def download_rps():
         worksheet.merge_range(f'C{desc_start_row}:L{desc_start_row}', description_matkul, text_cpl_format)
 
         bahan_start_row = desc_start_row + 1
-        bahan_end_row = bahan_start_row + len(matkul_data["materi_non_uts_uas_numbered"]) - 1
-        worksheet.merge_range(f"B{bahan_start_row}:B{bahan_end_row}", "Bahan Kajian/Materi Pembelajaran", title_korelasi_format)
+        # FIX: pastikan minimal 1 baris meski materi kosong
+        n_bahan = max(len(matkul_data["materi_non_uts_uas_numbered"]), 1)
+        bahan_end_row = bahan_start_row + n_bahan - 1
+        if bahan_end_row == bahan_start_row:
+            worksheet.write(f"B{bahan_start_row}", "Bahan Kajian/Materi Pembelajaran", title_korelasi_format)
+        else:
+            worksheet.merge_range(f"B{bahan_start_row}:B{bahan_end_row}", "Bahan Kajian/Materi Pembelajaran", title_korelasi_format)
         for i in range(len(matkul_data["materi_non_uts_uas_numbered"])):
             worksheet.merge_range(f'C{desc_start_row+1+i}:L{desc_start_row+1+i}', matkul_data["materi_non_uts_uas_numbered"][i], text_cpl_format)
 
@@ -769,20 +785,27 @@ def download_rps():
         
         dosen_start_row = pustaka_pendukung_end_row + 1
         dosen_end_row = dosen_start_row + len(matkul_data["team_teaching"]) - 1
-        worksheet.merge_range(f"B{dosen_start_row}:B{dosen_end_row}", "Dosen Pengampu", title_korelasi_format)
+        # FIX: jika hanya 1 dosen, write() bukan merge_range() agar tidak crash
+        if dosen_end_row == dosen_start_row:
+            worksheet.write(f"B{dosen_start_row}", "Dosen Pengampu", title_korelasi_format)
+        else:
+            worksheet.merge_range(f"B{dosen_start_row}:B{dosen_end_row}", "Dosen Pengampu", title_korelasi_format)
         for i in range(len(matkul_data["team_teaching"])):
             worksheet.merge_range(f'C{dosen_start_row+i}:L{dosen_start_row+i}', matkul_data["team_teaching"][i], text_cpl_format)
 
         syarat_start_row = dosen_end_row + 1
-        dosen_end_row = syarat_start_row + len(matkul_data["matkul_syarat"]) - 1
-        if dosen_end_row == syarat_start_row:
+        # FIX: pakai syarat_end_row, jangan timpa dosen_end_row
+        # FIX: handle matkul_syarat kosong agar tidak crash
+        syarat_items = matkul_data["matkul_syarat"] if matkul_data["matkul_syarat"] else ["-"]
+        syarat_end_row = syarat_start_row + len(syarat_items) - 1
+        if syarat_end_row == syarat_start_row:
             worksheet.write(f"B{syarat_start_row}", "Matakuliah Syarat", title_korelasi_format)
         else:
-            worksheet.merge_range(f"B{syarat_start_row}:B{dosen_end_row}", "Matakuliah Syarat", title_korelasi_format)
-        for i in range(len(matkul_data["matkul_syarat"])):
-            worksheet.merge_range(f'C{syarat_start_row+i}:L{syarat_start_row+i}', matkul_data["matkul_syarat"][i], text_cpl_format)
+            worksheet.merge_range(f"B{syarat_start_row}:B{syarat_end_row}", "Matakuliah Syarat", title_korelasi_format)
+        for i, item in enumerate(syarat_items):
+            worksheet.merge_range(f'C{syarat_start_row+i}:L{syarat_start_row+i}', item, text_cpl_format)
 
-        mingguan_start_row = dosen_end_row + 1 
+        mingguan_start_row = syarat_end_row + 1  # FIX: pakai syarat_end_row
         worksheet.merge_range(f"B{mingguan_start_row}:B{mingguan_start_row+2}", "Mg Ke-", title_format)
         worksheet.write(f"B{mingguan_start_row+3}", "(1)", title_format)
 
@@ -831,7 +854,13 @@ def download_rps():
 
             indikator_text = matkul_data["indikator_numbered"][i]
 
-            if "Evaluasi UTS" in indikator_text or "Evaluasi UAS" in indikator_text:
+            # FIX: deteksi baris evaluasi lebih fleksibel (UTS/UAS apapun judulnya)
+            eval_keywords = ["Evaluasi UTS", "Evaluasi UAS", "Project UTS", "Project UAS", "UTS", "UAS"]
+            kriteria_text = matkul_data["kriteria_numbered"][i] if i < len(matkul_data["kriteria_numbered"]) else ""
+            is_evaluasi = any(kw in str(kriteria_text) for kw in ["[H2]", "[A3]", "Evaluasi UTS", "Evaluasi UAS"]) \
+                          or any(kw in str(indikator_text) for kw in ["Evaluasi UTS", "Evaluasi UAS"])
+
+            if is_evaluasi:
                 worksheet.merge_range(
                     f'D{mingguan_body_start_row+i}:K{mingguan_body_start_row+i}',
                     indikator_text,
@@ -841,9 +870,11 @@ def download_rps():
                 continue
 
             worksheet.merge_range(f'D{mingguan_body_start_row+i}:E{mingguan_body_start_row+i}', indikator_text, text_cpl_format)
-            worksheet.merge_range(f'F{mingguan_body_start_row+i}:G{mingguan_body_start_row+i}', matkul_data["kriteria_numbered"][i], text_cpl_format)
+            # FIX: safe access kriteria_numbered dengan fallback string kosong
+            kriteria_text_i = matkul_data["kriteria_numbered"][i] if i < len(matkul_data["kriteria_numbered"]) else ""
+            worksheet.merge_range(f'F{mingguan_body_start_row+i}:G{mingguan_body_start_row+i}', kriteria_text_i, text_cpl_format)
 
-            if "Tugas" in matkul_data["kriteria_numbered"][i]:
+            if "Tugas" in kriteria_text_i:
                 worksheet.write(f'H{mingguan_body_start_row+i}', f"Ekspository dan diskusi [TM : {rps_data['bobot_sks']}x50'] Task Based Learning [TB : {rps_data['bobot_sks']}x50']", text_cpl_format)
             else:
                 worksheet.write(f'H{mingguan_body_start_row+i}', f"Ekspository dan diskusi [TM : {rps_data['bobot_sks']}x50']", text_cpl_format)
