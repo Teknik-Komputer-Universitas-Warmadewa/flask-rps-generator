@@ -45,15 +45,17 @@ MATKUL_COLUMN = "D"
 # sheet: RPS, RPM, Rubrik, Kontrak, dan Portofolio.
 # ============================================================
 INSTITUSI = {
-    "universitas":   INSTITUSI["universitas"],
-    "fakultas":      INSTITUSI["fakultas"],
-    "prodi":         INSTITUSI["prodi"],
-    "kode_prodi":    "TKOM",
-    "kode_fakultas": "FTP",
-    "koordinator_mk": INSTITUSI["koordinator_mk"],
-    "kaprodi":       INSTITUSI["kaprodi"],
-    "kaprodi_nik":   INSTITUSI["kaprodi_nik"],
-    "logo_path":     INSTITUSI["logo_path"],
+    # Nilai fallback jika kolom Excel tidak diisi.
+    # Semua data diambil dari kolom AM-AQ di template Excel.
+    "universitas":    "",
+    "fakultas":       "",
+    "prodi":          "",
+    "kode_prodi":     "",
+    "kode_fakultas":  "",
+    "koordinator_mk": "",
+    "kaprodi":        "",
+    "kaprodi_nik":    "",
+    "logo_path":      "data/logo.png",
 }
 
 def kode_dok(tipe, kode_matkul, tahun):
