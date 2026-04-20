@@ -974,7 +974,7 @@ def download_rps():
         start_range_cell = xl_rowcol_to_cell(blueprint_start_row+1, end_col_green+2)
         end_range_cell = xl_rowcol_to_cell(blueprint_start_row+(len(matkul_data["subcpmk_bobot"]) + 5), 11)    
 
-        worksheet.merge_range(f'{start_range_cell}:{end_range_cell}', "Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sebagai berikut:\nRENTANGAN NILAI :\n85.00 - 100.00 : A (UNGGUL - LULUS)                \n75.00 - 84.99   : AB (BAIK SEKALI - LULUS)              \n70.00 - 74.99   : B (BAIK - LULUS)             \n60.00 - 69.99   : BC (CUKUP BAIK - TIDAK LULUS)\n55.00 - 59.99   : C (CUKUP - TIDAK LULUS)\n50.00 - 54.99   : CD (KURANG - TIDAK LULUS)\n44.00 - 49.99   : D (KURANG SEKALI - TIDAK LULUS)\n0.00 - 43.99     : E (GAGAL - TIDAK LULUS)", text_cpl_format)
+        worksheet.merge_range(f'{start_range_cell}:{end_range_cell}', "Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sebagai berikut:\nRENTANGAN NILAI :\n80.00 - 100.00 : A (UNGGUL - LULUS)                \n75.00 - 79.99   : AB (BAIK SEKALI - LULUS)              \n70.00 - 74.99   : B (BAIK - LULUS)             \n60.00 - 69.99   : BC (CUKUP BAIK - LULUS)\n55.00 - 59.99   : C (CUKUP - LULUS)\n50.00 - 54.99   : CD (KURANG - TIDAK LULUS)\n44.00 - 49.99   : D (KURANG SEKALI - TIDAK LULUS)\n0.00 - 43.99     : E (GAGAL - TIDAK LULUS)", text_cpl_format)
 
         # tentukan start row/col dan end row/col
         start_row = blueprint_start_row + 3
@@ -1482,15 +1482,14 @@ def download_rps():
 
         Nilai akhir diatas dikonversikan kedalam huruf mutu menggunakan kriteria penilaian sbb:
         RENTANGAN NILAI :
-        80.00 – 100     = A         Unggul
-        75.00 – 79.99  = AB        Baik Sekali
-        70.00 – 74.99  = B          Baik
-        60.00 – 69.99  = BC        Cukup Baik
-        55.00 – 59.99  = C          Cukup
-        50.00 – 54.99  = CD        Kurang
-        44.00 – 49.99  = D          Sangat Kurang
-        0.00 – 43.99    = E          Gagal
-        0.00 – 0.00      = T          Tidak Aktif""",
+        80.00 – 100     = A         (Unggul - Lulus)
+        75.00 – 79.99  = AB        (Baik Sekali - Lulus)
+        70.00 – 74.99  = B          (Baik - Lulus)
+        60.00 – 69.99  = BC        (Cukup Baik - Lulus)
+        55.00 – 59.99  = C          (Cukup - Lulus)
+        50.00 – 54.99  = CD        (Kurang - Tidak Lulus)
+        44.00 – 49.99  = D          (Sangat Kurang - Tidak Lulus)
+        0.00 – 43.99    = E          (Gagal - Tidak Lulus)""",
             """1. Mahasiswa diwajibkan menggunakan pakaian yang pantas (kemeja/kaos tidak oblong) pada waktu mengikuti perkuliahan di kelas maupun online.
         2. Mahasiswa wajib menaktifkan video kamera saat melakukan kuliah daring / zoom meeting.
         3. Keterlambatan masuk di kelas hanya diijinkan maksimal 60 menit dari jadwal, kecuali ada hal-hal yang bersifat khusus.
@@ -1541,7 +1540,7 @@ def download_rps():
         worksheet_kontrak.merge_range("F43:H43", "Universitas Warmadewa", text_ttd_format)
 
         # Spasi tanda tangan (misalnya 2–3 baris kosong)
-        worksheet_kontrak.merge_range("F48:H48", "I Made Surya Kumara, S.T., M.Sc.", text_ttd_format)
+        worksheet_kontrak.merge_range("F48:H48", "Ir. I Made Surya Kumara, S.T., M.Sc.", text_ttd_format)
         worksheet_kontrak.merge_range("F49:H49", "NIK. 230700584", text_ttd_format)
 
         ############################## PORTO ############################################
