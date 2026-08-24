@@ -1439,10 +1439,14 @@ def download_rps():
                 worksheet_rub.merge_range(f"E{17+i}:M{17+i}", "", text_cpl_format)
 
             for idx, (subcpmk, cpl) in enumerate(zip(subcpmk_rub_data, cpl_rub_data)):
-                try:
-                    sub_desc = cpl_cpmk_sub["subcpmk_desc"][idx]
-                except (IndexError, TypeError):
-                    sub_desc = ""
+                # FIX: cocokkan deskripsi berdasarkan KODE subcpmk, bukan posisi index --
+                # urutan subcpmk_rub_data berasal dari set (tidak berurutan tetap),
+                # jadi index sederhana bisa memasangkan kode dengan deskripsi yang salah.
+                sub_desc = ""
+                if "subcpmk_kode" in cpl_cpmk_sub and "subcpmk_desc" in cpl_cpmk_sub:
+                    if subcpmk in cpl_cpmk_sub["subcpmk_kode"]:
+                        desc_idx = cpl_cpmk_sub["subcpmk_kode"].index(subcpmk)
+                        sub_desc = cpl_cpmk_sub["subcpmk_desc"][desc_idx]
                 worksheet_rub.write(row, 3, subcpmk, title_korelasi_format)
                 worksheet_rub.write(row, 4, sub_desc, text_cpl_format)
                 row += 1
