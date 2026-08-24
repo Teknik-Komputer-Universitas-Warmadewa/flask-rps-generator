@@ -22,5 +22,5 @@ pip install -r requirements.txt
 
 ### 3. Run App
 ```bash
-python app_v2.py
+python app.py
 ```
