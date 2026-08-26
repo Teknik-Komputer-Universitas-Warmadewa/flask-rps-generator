@@ -9,6 +9,7 @@ from collections import defaultdict
 from xlsxwriter.utility import xl_rowcol_to_cell
 import re
 import logging
+import struct
 from logging.handlers import TimedRotatingFileHandler
 # import string
 
@@ -103,13 +104,55 @@ INSTITUSI = {
     "universitas":    "",
     "fakultas":       "",
     "prodi":          "",
-    "kode_prodi":     "",
-    "kode_fakultas":  "",
+    "kode_prodi":     "COM",
+    "kode_fakultas":  "FTP",
     "koordinator_mk": "",
-    "kaprodi":        "",
-    "kaprodi_nik":    "",
+    "kaprodi":        "Ir. Gde Wikan Pradnya Dana, S.T., M.T.",
+    "kaprodi_nik":    "230700583",
     "logo_path":      "data/logo.png",
+    "ttd_kaprodi":    "data/ttd_kaprodi.png",
+    "cap_prodi":      "data/cap_prodi.png",
 }
+
+
+def get_png_pixel_size(path):
+    """Baca lebar x tinggi (px) sebuah file PNG langsung dari header IHDR-nya,
+    tanpa perlu library tambahan (Pillow dkk). Return None jika file tidak ada
+    / bukan PNG yang valid, supaya pemanggilnya bisa fallback dengan aman."""
+    try:
+        with open(path, "rb") as f:
+            header = f.read(24)
+        if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n":
+            return None
+        width, height = struct.unpack(">II", header[16:24])
+        return width, height
+    except Exception:
+        return None
+
+
+def insert_signature_image(worksheet, cell, path, target_w_px, target_h_px, x_offset=0, y_offset=0):
+    """Sisipkan gambar ttd/cap ke posisi tertentu dengan ukuran target (px).
+    Aman dipanggil meski file ttd_kaprodi.png / cap_prodi.png belum ada --
+    kalau filenya tidak ditemukan, cukup dilewati tanpa membuat RPS gagal dibuat."""
+    if not path or not os.path.exists(path):
+        return
+    size = get_png_pixel_size(path)
+    if size and size[0] and size[1]:
+        x_scale = target_w_px / size[0]
+        y_scale = target_h_px / size[1]
+    else:
+        # Bukan PNG / tidak terbaca dimensinya -- masukkan apa adanya (skala 1x)
+        x_scale = y_scale = 1
+    try:
+        worksheet.insert_image(cell, path, {
+            "x_scale": x_scale,
+            "y_scale": y_scale,
+            "x_offset": x_offset,
+            "y_offset": y_offset,
+        })
+    except Exception as e:
+        logger.warning(f"Gagal menyisipkan gambar {path} di {cell}: {e}")
+
 
 def kode_dok(tipe, kode_matkul, tahun):
     return f'{INSTITUSI["kode_fakultas"]}-{INSTITUSI["kode_prodi"]}-{tipe}-{kode_matkul}-{tahun}'
@@ -830,12 +873,16 @@ def download_rps():
         worksheet.merge_range("G10:I10", "Koordinator Mata Kuliah", title_format)    
         worksheet.merge_range("J10:L10", "Ketua Program Studi", title_format)
 
-        worksheet.set_row(10, 110)
+        worksheet.set_row(10, 145)
 
         worksheet.merge_range("B11:C11", "OTORISASI / PENGESAHAN", text_otorisasi_format)
         worksheet.merge_range("D11:F11", get_dosen_pengembang(matkul_data), text_otorisasi_format)    
         worksheet.merge_range("G11:I11", get_koordinator_mk(matkul_data), text_otorisasi_format)    
         worksheet.merge_range("J11:L11", get_kaprodi(matkul_data), text_otorisasi_format)
+
+        # TTD Kaprodi + Cap Prodi pada blok Otorisasi/Pengesahan (kolom "Ketua Program Studi")
+        insert_signature_image(worksheet, "J11", INSTITUSI["ttd_kaprodi"], 428, 208, x_offset=30, y_offset=9)
+        insert_signature_image(worksheet, "I8", INSTITUSI["cap_prodi"], 211, 211, x_offset=107, y_offset=15)
 
         unique_cpmk = {}
         unique_cpl = {}
@@ -1649,6 +1696,10 @@ def download_rps():
 
         worksheet_kontrak.merge_range("F48:H48", get_kaprodi(matkul_data), text_ttd_format)
         worksheet_kontrak.merge_range("F49:H49", get_institusi(matkul_data, "kaprodi_nik"), text_ttd_format)
+
+        # TTD Kaprodi + Cap Prodi pada blok "Mengetahui / Ketua Program Studi"
+        insert_signature_image(worksheet_kontrak, "F41", INSTITUSI["ttd_kaprodi"], 428, 208, x_offset=106, y_offset=11)
+        insert_signature_image(worksheet_kontrak, "E41", INSTITUSI["cap_prodi"], 198, 198, x_offset=124, y_offset=6)
 
         ############################## PORTO ############################################
         sheet_title_porto = f"LEMBAR KERJA - PORTO"
