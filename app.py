@@ -101,9 +101,9 @@ MATKUL_COLUMN = "D"
 INSTITUSI = {
     # Nilai fallback jika kolom Excel tidak diisi.
     # Semua data diambil dari kolom AM-AQ di template Excel.
-    "universitas":    "",
-    "fakultas":       "",
-    "prodi":          "",
+    "universitas":    "UNIVERSITAS WARMADEWA",
+    "fakultas":       "FAKULTAS TEKNIK DAN PERENCANAAN",
+    "prodi":          "PROGRAM STUDI TEKNIK KOMPUTER",
     "kode_prodi":     "COM",
     "kode_fakultas":  "FTP",
     "koordinator_mk": "",
