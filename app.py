@@ -1808,8 +1808,13 @@ def download_rps():
             # dipakai lagi di bawah (data_porto) dengan index i yang sama
             # persis dengan subcpmk_weekly. sub bisa tidak ada di mapping
             # kalau kode Sub-CPMK itu tidak muncul di tabel korelasi CPL
-            # (kolom Q) di Excel sumber -- isi string kosong, JANGAN skip.
-            cpl, cpmk = mapping.get(sub, ("", ""))
+            # (kolom Q) di Excel sumber.
+            # PENTING: placeholder cpl TIDAK BOLEH string kosong -- di bawah
+            # (blok "data_porto"/sheet Porto), `is_real_item = bool(cpl)`
+            # memakai cpl == "" sebagai PENANDA baris "NILAI PER CPL"/dsb,
+            # jadi cpl="" di sini akan salah diperlakukan sebagai baris
+            # penanda dan merusak perhitungan area merge cell (OverlappingRange).
+            cpl, cpmk = mapping.get(sub, ("(Tidak Terpetakan)", ""))
             cpl_weekly.append(cpl)
             cpmk_weekly.append(cpmk)
 
