@@ -1804,11 +1804,12 @@ def download_rps():
         cpl_weekly = []
         cpmk_weekly = []
         for sub in matkul_data["subcpmk_weekly"]:
-            # sub bisa tidak ada di mapping kalau baris Sub-CPMK-nya tidak
-            # punya bobot CPL/CPMK lengkap di Excel sumber -- lewati saja.
-            if sub not in mapping:
-                continue
-            cpl, cpmk = mapping[sub]
+            # cpl_weekly/cpmk_weekly WAJIB tetap sepanjang subcpmk_weekly --
+            # dipakai lagi di bawah (data_porto) dengan index i yang sama
+            # persis dengan subcpmk_weekly. sub bisa tidak ada di mapping
+            # kalau kode Sub-CPMK itu tidak muncul di tabel korelasi CPL
+            # (kolom Q) di Excel sumber -- isi string kosong, JANGAN skip.
+            cpl, cpmk = mapping.get(sub, ("", ""))
             cpl_weekly.append(cpl)
             cpmk_weekly.append(cpmk)
 
