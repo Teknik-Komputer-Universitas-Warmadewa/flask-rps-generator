@@ -943,6 +943,14 @@ def download_rps():
         bobot_per_cpl = []
 
         for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
+            # matkul_data["cpl_bobot"]/["total_bobot"] cuma diisi utk baris yg
+            # kolom bobotnya (O/Y) terisi di Excel sumber -- kalau ada baris
+            # Sub-CPMK tanpa bobot, panjang list ini lebih pendek dari
+            # subcpmk_kode. Lewati saja baris yg tidak punya pasangan bobot,
+            # daripada IndexError (500 error) -- cek data Excel-nya kalau
+            # baris yg dilewati ini seharusnya punya bobot.
+            if i >= len(matkul_data["cpl_bobot"]):
+                continue
             excel_row = korelasi_start_row + 1 + i
             kode = matkul_data["cpl_bobot"][i]
             try:
@@ -1178,6 +1186,11 @@ def download_rps():
             worksheet.write(f'C{blueprint_start_row+4+i}', kriteria_per_subcpmk[i], text_format)
 
         for i, sub in enumerate(cpl_cpmk_sub["subcpmk_kode"]):
+            # Lihat catatan sama di blok korelasi CPL x Sub-CPMK di atas --
+            # cpl_bobot/total_bobot bisa lebih pendek dari subcpmk_kode kalau
+            # ada baris Sub-CPMK tanpa bobot terisi di Excel sumber.
+            if i >= len(matkul_data["cpl_bobot"]):
+                continue
             excel_row = blueprint_start_row + 3 + i
             kode = matkul_data["cpl_bobot"][i]
             try:
@@ -1191,6 +1204,8 @@ def download_rps():
                 worksheet.write(f"{col_letter}{excel_row+1}", f'Nilai x {bobot}% \n({rubrik_per_subcpmk[i]})', percent_format)
 
         for i in range(len(cpl_cpmk_sub["subcpmk_kode"])):
+            if i >= len(matkul_data["total_bobot"]):
+                continue
             worksheet.write(blueprint_start_row+3+i, end_col_green+1, matkul_data["total_bobot"][i], text_format)
 
         last_rps_start_row = blueprint_start_row + len(cpl_cpmk_sub["subcpmk_kode"]) + 4
@@ -1776,14 +1791,23 @@ def download_rps():
             inside_bracket = inside_bracket.group(0) if inside_bracket else ""
             kriteria_kode.append(f"{before_colon} {inside_bracket}")
 
+        # cpl_bobot/cpmk_bobot/subcpmk_bobot masing-masing diisi independen
+        # (baris di-append kalau kolom O/P/Q-nya sendiri terisi), jadi
+        # panjangnya bisa beda -- filter ke indeks yg punya pasangan lengkap
+        # di ketiganya, daripada IndexError.
         mapping = {
             sub: (matkul_data["cpl_bobot"][i], matkul_data["cpmk_bobot"][i])
             for i, sub in enumerate(matkul_data["subcpmk_bobot"])
+            if i < len(matkul_data["cpl_bobot"]) and i < len(matkul_data["cpmk_bobot"])
         }
 
         cpl_weekly = []
         cpmk_weekly = []
         for sub in matkul_data["subcpmk_weekly"]:
+            # sub bisa tidak ada di mapping kalau baris Sub-CPMK-nya tidak
+            # punya bobot CPL/CPMK lengkap di Excel sumber -- lewati saja.
+            if sub not in mapping:
+                continue
             cpl, cpmk = mapping[sub]
             cpl_weekly.append(cpl)
             cpmk_weekly.append(cpmk)
